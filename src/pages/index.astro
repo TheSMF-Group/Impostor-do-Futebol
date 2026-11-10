@@ -1,0 +1,64 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout>
+<header class="top"><div class="wrap">
+  <button class="brand" id="homeBtn" type="button" aria-label="Impostor do Futebol, início"><span class="blogo" aria-hidden="true"><span class="bi">Impostor</span><span class="bs">do Futebol</span></span></button>
+  <div style="display:flex;gap:6px;align-items:center"><span class="roomtag" id="roomTag" hidden></span><button class="link" id="rulesBtn" type="button">Como jogar</button></div>
+</div></header>
+
+<main id="scr-home">
+  <section class="hero"><div class="wrap">
+    <div>
+      <h1>Todo mundo sabe o craque. Menos um.</h1>
+      <p class="lead">Crie uma sala, mande o código para a galera e cada um joga do próprio celular. Quem é do elenco vira a carta e vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha e precisa blefar.</p>
+      <div class="join">
+        <input class="field" id="nick" maxlength="18" placeholder="Seu apelido" autocomplete="nickname" aria-label="Seu apelido">
+        <button class="btn btn-red btn-block" id="createBtn" type="button">Criar sala</button>
+        <div class="two"><input class="field code-field" id="codeIn" maxlength="4" placeholder="CÓDIGO" aria-label="Código da sala" autocomplete="off"><button class="btn btn-white" id="joinBtn" type="button">Entrar</button></div>
+        <p class="err" id="homeErr" hidden></p>
+      </div>
+    </div>
+    <div class="logo art" id="heroArt" aria-hidden="true"><div class="band"></div><div class="mascote"><img class="bE" src="/img/mascote/braco-esquerdo.webp" alt=""><img class="bD" src="/img/mascote/braco-direito.webp" alt=""><img class="corpo" src="/img/mascote/corpo.webp" alt=""></div></div>
+  </div></section>
+
+  <section class="block"><div class="wrap">
+    <div class="sec-head"><h2>Salas abertas agora</h2><span class="note" id="roomsNote">Procurando salas…</span></div>
+    <div class="rooms" id="rooms"></div>
+  </div></section>
+
+  <section class="block" style="padding-top:4px"><div class="wrap">
+    <div class="sec-head"><h2>Como funciona</h2></div>
+    <div class="steps">
+      <div><b>1</b><h3>Monte a sala</h3><p>Crie, mande o código e espere a galera entrar. Mínimo de 3.</p></div>
+      <div><b>2</b><h3>Veja sua carta</h3><p>Toque em Virar carta e veja o jogador ou time secreto. Ou a tela do impostor.</p></div>
+      <div><b>3</b><h3>Uma pista cada</h3><p>Na sua vez, escreva uma palavra só. Sem falar o nome nem o clube.</p></div>
+      <div><b>4</b><h3>Votação</h3><p>Todo mundo vota no suspeito. Se o impostor cair, ainda pode chutar quem era.</p></div>
+    </div>
+  </div></section>
+  <footer><div class="wrap">Impostor do Futebol · cada jogador entra pelo próprio celular com o link do jogo.</div></footer>
+</main>
+
+<main id="scr-room" hidden><div class="wrap stage"><div class="col" id="roomView"></div></div></main>
+
+<dialog id="rules"><div class="dlg">
+  <h2>Como jogar</h2>
+  <ol>
+    <li>Alguém cria a sala e passa o código. Todo mundo entra pelo próprio celular.</li>
+    <li>Quando a partida começa, cada um toca em Virar carta. O elenco vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha e o tema.</li>
+    <li>Na ordem sorteada, cada um escreve uma pista de uma palavra. O impostor tenta parecer do elenco.</li>
+    <li>Todo mundo vota em quem acha que é o impostor. Empate não elimina ninguém.</li>
+    <li>Se o elenco pegar o impostor, ele ainda tem um chute para adivinhar o jogador ou time secreto e roubar a vitória.</li>
+  </ol>
+  <p>Temas: Jogadores do Futebol Brasileiro, Jogadores da Champions League, Times Brasileiros, Times da Europa e Lendas do Futebol.</p><p>Regra de ouro: proibido escrever o nome, o clube do jogador ou parte exata do nome.</p>
+  <p>Dica: joguem numa chamada de voz para discutir antes de votar.</p>
+  <form method="dialog"><button class="btn btn-red btn-block">Entendi</button></form>
+</div></dialog>
+
+</Layout>
+
+<script>
+  import { start } from "../game/app";
+  start();
+</script>

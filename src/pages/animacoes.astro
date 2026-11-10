@@ -1,0 +1,117 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+// Demonstração de todas as animações do jogo, com os mesmos módulos da partida.
+const groups = [
+  { id: "inicio", t: "Começo da rodada" },
+  { id: "pistas", t: "Durante as pistas" },
+  { id: "votacao", t: "Votação e resultado" },
+  { id: "chute", t: "Chute do impostor" },
+];
+---
+
+<Layout title="Animações · Impostor do Futebol" description="Todas as animações do Impostor do Futebol.">
+  <main class="demo">
+    <h1><span class="px">Impostor</span> · animações</h1>
+    <p>Clique em cada uma para ver, ou toque a rodada inteira. Na partida, elas aparecem sozinhas no celular de todo mundo.</p>
+    <div class="row2">
+      <button class="btn btn-red" id="all" type="button">▶ Tocar a rodada inteira</button>
+      <button class="btn btn-ghost" id="stop" type="button">Parar</button>
+      <a class="btn btn-ghost" href="/">Voltar ao jogo</a>
+    </div>
+    {groups.map((g) => (
+      <>
+        <h2>{g.t}</h2>
+        <div class="grid" id={"g-" + g.id} />
+      </>
+    ))}
+    <h2>Carta</h2>
+    <p>O botão pulsa até a pessoa ver a carta. A carta vira com brilho e confete.</p>
+    <div class="cardbar pulse" style="max-width:480px">
+      <div class="minib" aria-hidden="true">?</div>
+      <div class="txt"><b>Sua carta chegou</b><span>Tema: Lendas do Futebol. Cuidado com quem está do lado.</span></div>
+      <button class="btn btn-red btn-sm pulse" type="button" id="flipP">Virar carta</button>
+    </div>
+    <div class="row2" style="margin-top:10px">
+      <button class="btn btn-ghost btn-sm" type="button" id="flipT">Carta de time</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="flipI">Carta do impostor</button>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .demo { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+  .demo h1 { font-size: 28px; margin: 0 0 6px; }
+  .demo h1 .px { font-family: var(--pixel); color: var(--red); font-weight: 400; }
+  .demo h2 { font-size: 18px; margin: 28px 0 10px; }
+  .demo p { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  .row2 { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .grid :global(button) { text-align: left; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px; color: var(--fg); font-weight: 700; font-size: 14px; }
+  .grid :global(button small) { display: block; color: var(--muted); font-weight: 500; font-size: 12px; margin-top: 2px; }
+  .grid :global(button:hover) { border-color: var(--red); }
+</style>
+
+<script>
+  import { faceHTML, showCard } from "../game/card";
+  import { THEMES, loadMedia, loadThemes } from "../game/data";
+  import { COUNTDOWN, play, stop, type Moment } from "../game/moments";
+  import { $ } from "../game/util";
+
+  type Entry = [titulo: string, detalhe: string, passos: Moment[]];
+  const M: Record<string, Entry[]> = {
+    inicio: [
+      ["Vai começar", "Rodada 1 · tema", [{ k: "Rodada 1", b: "Vai começar", s: "Tema: Lendas do Futebol", ms: 1300, c: "white" }]],
+      ["3, 2, 1", "contagem com anel", COUNTDOWN],
+      ["Deem seus palpites!", "depois da contagem", [{ b: "Deem seus palpites!", s: "Vire sua carta e pense na sua pista", ms: 1900, c: "shake" }]],
+    ],
+    pistas: [["Sua vez!", "só no celular de quem vai dar a pista", [{ k: "Pistas", b: "Sua vez!", s: "Escreva uma palavra só", ms: 1500, c: "white" }]]],
+    votacao: [
+      ["Hora da votação!", "quando acabam as pistas", [{ k: "Acabaram as pistas", b: "Hora da votação!", s: "Quem é o impostor?", ms: 1900, c: "shake" }]],
+      ["Contando os votos…", "suspense", [{ b: "Contando os votos…", ms: 1300, c: "white" }]],
+      ["A galera tirou… Ana", "nome de quem saiu", [{ k: "A galera tirou", b: "Ana", ms: 1400, c: "white", ring: true }]],
+      ["Era o impostor!", "pegaram", [{ b: "Era o impostor!", s: "Agora ele pode chutar o nome", ms: 2100, c: "shake" }]],
+      ["Era inocente!", "tiraram alguém do elenco", [{ b: "Era inocente!", s: "O impostor venceu", ms: 2000, c: "shake" }]],
+      ["Empate", "ninguém sai", [{ k: "Empate", b: "Ninguém saiu", s: "O impostor escapou", ms: 2000, c: "white" }]],
+      ["Votaram em ninguém", "opção Ninguém é impostor", [{ k: "Vocês votaram", b: "Ninguém", s: "Mas tinha impostor…", ms: 2000, c: "white" }]],
+      ["Rodada caótica", "todo mundo era impostor", [{ k: "Rodada caótica", b: "Todo mundo era impostor!", ms: 2200, c: "shake" }]],
+    ],
+    chute: [
+      ["Chute do impostor", "o nome que ele chutou", [{ k: "Chute do impostor", b: "“Zico”", ms: 1500, c: "white" }]],
+      ["Acertou!", "roubou a vitória", [{ b: "Acertou!", s: "O impostor roubou a vitória", ms: 2000, c: "shake" }]],
+      ["Errou!", "vitória do elenco", [{ b: "Errou!", s: "Vitória do elenco", ms: 2000, c: "shake" }]],
+    ],
+  };
+
+  for (const [g, list] of Object.entries(M))
+    for (const [t, d, steps] of list) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = `${t}<small>${d}</small>`;
+      b.addEventListener("click", () => play(steps, true));
+      $("g-" + g).appendChild(b);
+    }
+
+  const s = (g: string, i: number) => M[g][i][2];
+  $("all").addEventListener("click", () =>
+    play([...s("inicio", 0), ...COUNTDOWN, ...s("inicio", 2), ...s("pistas", 0), ...s("votacao", 0), ...s("votacao", 1), ...s("votacao", 2), ...s("votacao", 3), ...s("chute", 0), ...s("chute", 2)], true),
+  );
+  $("stop").addEventListener("click", stop);
+
+  const ready = Promise.all([loadThemes(), loadMedia()]);
+  const find = (k: string, name: string) => THEMES[k]?.items.find((i) => i[1] === name);
+  $("flipP").addEventListener("click", async () => {
+    await ready;
+    const z = find("len", "Zico");
+    if (z) showCard(faceHTML({ w: z[1], id: z[0] }, "len"), 1100);
+  });
+  $("flipT").addEventListener("click", async () => {
+    await ready;
+    const n = find("teu", "Newcastle");
+    if (n) showCard(faceHTML({ w: n[1], id: n[0] }, "teu"), 1100);
+  });
+  $("flipI").addEventListener("click", async () => {
+    await ready;
+    showCard(faceHTML({ imp: 1, nat: "Brasil", pos: "Meia-atacante" }, "len"), 1100);
+  });
+</script>
