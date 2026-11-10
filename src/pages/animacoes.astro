@@ -17,6 +17,7 @@ const groups = [
     <div class="row2">
       <button class="btn btn-red" id="all" type="button">▶ Tocar a rodada inteira</button>
       <button class="btn btn-ghost" id="stop" type="button">Parar</button>
+      <button class="btn btn-ghost" id="mute" type="button" aria-pressed="false">Som ligado</button>
       <a class="btn btn-ghost" href="/">Voltar ao jogo</a>
     </div>
     {groups.map((g) => (
@@ -56,30 +57,31 @@ const groups = [
   import { faceHTML, showCard } from "../game/card";
   import { THEMES, loadMedia, loadThemes } from "../game/data";
   import { COUNTDOWN, play, stop, type Moment } from "../game/moments";
+  import { isMuted, setMuted, unlockOnGesture } from "../game/sfx";
   import { $ } from "../game/util";
 
   type Entry = [titulo: string, detalhe: string, passos: Moment[]];
   const M: Record<string, Entry[]> = {
     inicio: [
-      ["Vai começar", "Rodada 1 · tema", [{ k: "Rodada 1", b: "Vai começar", s: "Tema: Lendas do Futebol", ms: 1300, c: "white" }]],
+      ["Vai começar", "Rodada 1 · tema", [{ k: "Rodada 1", b: "Vai começar", s: "Tema: Lendas do Futebol", ms: 1300, c: "white", sfx: "intro" }]],
       ["3, 2, 1", "contagem com anel", COUNTDOWN],
-      ["Deem seus palpites!", "depois da contagem", [{ b: "Deem seus palpites!", s: "Vire sua carta e pense na sua pista", ms: 1900, c: "shake" }]],
+      ["Deem seus palpites!", "depois da contagem", [{ b: "Deem seus palpites!", s: "Vire sua carta e pense na sua pista", ms: 1900, c: "shake", sfx: "whistle" }]],
     ],
-    pistas: [["Sua vez!", "só no celular de quem vai dar a pista", [{ k: "Pistas", b: "Sua vez!", s: "Escreva uma palavra só", ms: 1500, c: "white" }]]],
+    pistas: [["Sua vez!", "só no celular de quem vai dar a pista", [{ k: "Pistas", b: "Sua vez!", s: "Escreva uma palavra só", ms: 1500, c: "white", sfx: "turn" }]]],
     votacao: [
-      ["Hora da votação!", "quando acabam as pistas", [{ k: "Acabaram as pistas", b: "Hora da votação!", s: "Quem é o impostor?", ms: 1900, c: "shake" }]],
-      ["Contando os votos…", "suspense", [{ b: "Contando os votos…", ms: 1300, c: "white" }]],
-      ["A galera tirou… Ana", "nome de quem saiu", [{ k: "A galera tirou", b: "Ana", ms: 1400, c: "white", ring: true }]],
-      ["Era o impostor!", "pegaram", [{ b: "Era o impostor!", s: "Agora ele pode chutar o nome", ms: 2100, c: "shake" }]],
-      ["Era inocente!", "tiraram alguém do elenco", [{ b: "Era inocente!", s: "O impostor venceu", ms: 2000, c: "shake" }]],
-      ["Empate", "ninguém sai", [{ k: "Empate", b: "Ninguém saiu", s: "O impostor escapou", ms: 2000, c: "white" }]],
-      ["Votaram em ninguém", "opção Ninguém é impostor", [{ k: "Vocês votaram", b: "Ninguém", s: "Mas tinha impostor…", ms: 2000, c: "white" }]],
-      ["Rodada caótica", "todo mundo era impostor", [{ k: "Rodada caótica", b: "Todo mundo era impostor!", ms: 2200, c: "shake" }]],
+      ["Hora da votação!", "quando acabam as pistas", [{ k: "Acabaram as pistas", b: "Hora da votação!", s: "Quem é o impostor?", ms: 1900, c: "shake", sfx: "alarm" }]],
+      ["Contando os votos…", "suspense", [{ b: "Contando os votos…", ms: 1300, c: "white", sfx: "roll" }]],
+      ["A galera tirou… Ana", "nome de quem saiu", [{ k: "A galera tirou", b: "Ana", ms: 1400, c: "white", ring: true, sfx: "hit" }]],
+      ["Era o impostor!", "pegaram", [{ b: "Era o impostor!", s: "Agora ele pode chutar o nome", ms: 2100, c: "shake", sfx: "impostor" }]],
+      ["Era inocente!", "tiraram alguém do elenco", [{ b: "Era inocente!", s: "O impostor venceu", ms: 2000, c: "shake", sfx: "innocent" }]],
+      ["Empate", "ninguém sai", [{ k: "Empate", b: "Ninguém saiu", s: "O impostor escapou", ms: 2000, c: "white", sfx: "innocent" }]],
+      ["Votaram em ninguém", "opção Ninguém é impostor", [{ k: "Vocês votaram", b: "Ninguém", s: "Mas tinha impostor…", ms: 2000, c: "white", sfx: "innocent" }]],
+      ["Rodada caótica", "todo mundo era impostor", [{ k: "Rodada caótica", b: "Todo mundo era impostor!", ms: 2200, c: "shake", sfx: "impostor" }]],
     ],
     chute: [
-      ["Chute do impostor", "o nome que ele chutou", [{ k: "Chute do impostor", b: "“Zico”", ms: 1500, c: "white" }]],
-      ["Acertou!", "roubou a vitória", [{ b: "Acertou!", s: "O impostor roubou a vitória", ms: 2000, c: "shake" }]],
-      ["Errou!", "vitória do elenco", [{ b: "Errou!", s: "Vitória do elenco", ms: 2000, c: "shake" }]],
+      ["Chute do impostor", "o nome que ele chutou", [{ k: "Chute do impostor", b: "“Zico”", ms: 1500, c: "white", sfx: "roll" }]],
+      ["Acertou!", "roubou a vitória", [{ b: "Acertou!", s: "O impostor roubou a vitória", ms: 2000, c: "shake", sfx: "impostor" }]],
+      ["Errou!", "vitória do elenco", [{ b: "Errou!", s: "Vitória do elenco", ms: 2000, c: "shake", sfx: "win" }]],
     ],
   };
 
@@ -97,6 +99,17 @@ const groups = [
     play([...s("inicio", 0), ...COUNTDOWN, ...s("inicio", 2), ...s("pistas", 0), ...s("votacao", 0), ...s("votacao", 1), ...s("votacao", 2), ...s("votacao", 3), ...s("chute", 0), ...s("chute", 2)], true),
   );
   $("stop").addEventListener("click", stop);
+  unlockOnGesture();
+  const muteBtn = $("mute");
+  const paintMute = () => {
+    muteBtn.textContent = isMuted() ? "Som desligado" : "Som ligado";
+    muteBtn.setAttribute("aria-pressed", String(isMuted()));
+  };
+  paintMute();
+  muteBtn.addEventListener("click", () => {
+    setMuted(!isMuted());
+    paintMute();
+  });
 
   const ready = Promise.all([loadThemes(), loadMedia()]);
   const find = (k: string, name: string) => THEMES[k]?.items.find((i) => i[1] === name);

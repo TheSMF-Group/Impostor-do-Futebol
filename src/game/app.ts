@@ -3,6 +3,7 @@ import { connect } from "./backend";
 import { cardBarHTML, closeReveal, openReveal, secretHTML } from "./card";
 import { THEME_ORDER, THEMES, loadMedia, loadThemes, themeName } from "./data";
 import { cue } from "./moments";
+import { isMuted, setMuted, unlockOnGesture } from "./sfx";
 import { activeIds, catsOf, genCode, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, roundKey, tallyVotes } from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
 import type { Patch, Room } from "./types";
@@ -545,6 +546,18 @@ function wire(): void {
     if (b) void act(b.dataset.act!, b);
   });
   $("homeBtn").addEventListener("click", () => window.scrollTo(0, 0));
+  unlockOnGesture();
+  const muteBtn = $("muteBtn");
+  const paintMute = () => {
+    const m = isMuted();
+    muteBtn.textContent = m ? "Som: desligado" : "Som: ligado";
+    muteBtn.setAttribute("aria-pressed", String(m));
+  };
+  paintMute();
+  muteBtn.addEventListener("click", () => {
+    setMuted(!isMuted());
+    paintMute();
+  });
   $("rulesBtn").addEventListener("click", () => {
     const d = $<HTMLDialogElement>("rules");
     try {

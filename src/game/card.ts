@@ -1,6 +1,7 @@
 // A carta de cada jogador: barra com o botão Virar carta, frente da carta e a virada em tela cheia.
 import { crestOf, isPlayerTheme, itemOf, loadMedia, photoOf, themeName } from "./data";
 import { S } from "./state";
+import { sfx } from "./sfx";
 import type { Card } from "./types";
 import { dec, esc } from "./util";
 
@@ -79,6 +80,7 @@ export function showCard(face: string, delay: number): void {
   el.setAttribute("aria-label", "Sua carta");
   el.innerHTML = `<div class="rev-glow"></div>${confetti()}<div class="award-perspective"><div class="award-card"><div class="award-face"><div class="cb-logo"><div class="px">Impostor</div><div class="sc">do Futebol</div></div><div class="cb-q">?</div><div class="cb-dots"><u></u><u></u><u></u></div></div>${face}</div></div><button class="btn btn-white rev-close" type="button" data-x="1">Esconder carta</button>`;
   document.body.appendChild(el);
+  sfx("flip", Math.max(0, delay / 1000 - 0.3));
   setTimeout(() => {
     el.querySelector(".award-card")?.classList.add("flipped");
     el.classList.add("on");
