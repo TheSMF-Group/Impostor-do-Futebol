@@ -1,6 +1,6 @@
 // Regras puras da partida (sem DOM): sorteio da rodada, votos, resultado e chute.
 import { THEME_ORDER, THEMES, isPlayerTheme } from "./data";
-import type { Card, Patch, Room, VoteResult } from "./types";
+import type { Card, Guess, Out, Patch, Room, VoteResult } from "./types";
 import { enc, esc, norm, now, pick, shuffle } from "./util";
 
 export const activeIds = (r: Pick<Room, "players">): string[] =>
@@ -16,11 +16,39 @@ export const roundKey = (r: Pick<Room, "rn">): string => "r" + r.rn;
 /** Temas marcados que existem nos dados. */
 export const catsOf = (r: Room | null): string[] => (r?.settings?.cats || []).filter((k) => THEMES[k]);
 
+/** Chave das pistas e votos da etapa atual: "r3" na 1ª etapa, "r3s2" na 2ª da eliminação. */
+export const stageKey = (r: Pick<Room, "rn" | "round">): string => {
+  const st = r.round?.stage || 1;
+  return roundKey(r) + (st > 1 ? "s" + st : "");
+};
+
+export const isElim = (r: Pick<Room, "round">): boolean => r.round?.mode === "elim";
+
+/** Quem ainda joga nesta etapa (na eliminação, quem não saiu). */
+export const liveIds = (r: Pick<Room, "round">): string[] => r.round?.alive || r.round?.players || [];
+
+/** Quantos suspeitos cada um escolhe na votação. */
+export const votesPerPlayer = (r: Pick<Room, "round">): number => (isElim(r) ? 1 : Math.max(1, r.round?.k || 1));
+
+/** Voto guardado como "id" ou "id1,id2" (votação única com vários impostores). */
+export const picksOf = (v: string | undefined | null): string[] => (v ? String(v).split(",").filter(Boolean) : []);
+
 /** De quem é a vez de dar a pista. */
 export const turnOf = (r: Room): string | undefined => {
-  const l = r.clues?.[roundKey(r)] || {};
+  const l = r.clues?.[stageKey(r)] || {};
   return r.round?.order?.[Object.keys(l).length];
 };
+
+/** Pistas de todas as etapas da rodada, por jogador. */
+export function cluesByPlayer(r: Room): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const last = r.round?.stage || 1;
+  for (let st = 1; st <= last; st++) {
+    const k = roundKey(r) + (st > 1 ? "s" + st : "");
+    for (const c of Object.values(r.clues?.[k] || {})) (out[c.u] ||= []).push(c.t);
+  }
+  return out;
+}
 
 export function newRoomDoc(code: string, host: string, nick: string): Room {
   const t = now();
@@ -96,8 +124,13 @@ export function newRoundPatch(room: Room): Patch {
   }
   const start = Math.floor(Math.random() * n);
   const lap = ids.map((_, i) => ids[(start + i) % n]);
+  // modos de votação só valem com 2 ou 3 impostores configurados; rodada caótica sem impostor
+  // ou com todo mundo impostor cai na votação única
+  const cfg = Math.min(s.imps, maxImps(n));
+  const mode = cfg >= 2 && s.voteMode === "elim" && k > 0 && k < n ? "elim" : "multi";
+  const laps = mode === "elim" ? 1 : s.rounds;
   const order: string[] = [];
-  for (let i = 0; i < s.rounds; i++) order.push(...lap);
+  for (let i = 0; i < laps; i++) order.push(...lap);
   return {
     status: "clues",
     rn: (room.rn || 0) + 1,
@@ -115,8 +148,12 @@ export function newRoundPatch(room: Room): Patch {
       chaos,
       players: ids,
       order,
-      laps: s.rounds,
+      laps,
       cards,
+      mode,
+      k: cfg,
+      // o patch é mesclado com a rodada anterior: zera os campos da eliminação quando não usa
+      ...(mode === "elim" ? { stage: 1, alive: ids, outs: [] } : { stage: null, alive: null, outs: null }),
     },
   };
 }
@@ -135,31 +172,92 @@ export function guessOk(t: string, word: string, cat: string): boolean {
   return g.length >= 5 && w.includes(g) && g.length >= w.length * 0.6;
 }
 
-/** Empate não tira ninguém. */
+/**
+ * Conta os votos da etapa atual. Cada voto pode ter até k suspeitos.
+ * Saem os k mais votados; empate na fronteira não tira ninguém daquele grupo.
+ * Se "Ninguém é impostor" for o mais votado sozinho, ninguém sai.
+ */
 export function tallyVotes(room: Room): VoteResult {
-  const r = room.round!,
-    vs = room.votes?.[roundKey(room)] || {},
+  const vs = room.votes?.[stageKey(room)] || {},
+    k = votesPerPlayer(room),
+    alive = liveIds(room),
     t: Record<string, number> = {};
-  for (const id of r.players) {
-    const v = vs[id];
-    if (v) t[v] = (t[v] || 0) + 1;
+  for (const id of alive) {
+    const picks = [...new Set(picksOf(vs[id]))].slice(0, k);
+    for (const v of picks) if (v === "none" || alive.includes(v)) t[v] = (t[v] || 0) + 1;
   }
-  let best: string | null = null,
-    top = 0,
-    tie = false;
-  for (const [k, c] of Object.entries(t)) {
-    if (c > top) {
-      top = c;
-      best = k;
-      tie = false;
-    } else if (c === top) tie = true;
+  const none = t.none || 0;
+  const ranked = Object.entries(t)
+    .filter(([id]) => id !== "none")
+    .sort((a, b) => b[1] - a[1]);
+  const top = ranked[0]?.[1] || 0;
+  if (!ranked.length || none > top) return { out: none ? "none" : null, outs: [], tally: t };
+  const outs: string[] = [];
+  let i = 0;
+  while (i < ranked.length && outs.length < k) {
+    const c = ranked[i][1];
+    const group = ranked.filter(([, x]) => x === c).map(([id]) => id);
+    if (outs.length + group.length > k || (none === c && outs.length === 0)) break;
+    outs.push(...group);
+    i += group.length;
   }
-  return { out: tie || !best ? null : best, tally: t };
+  return { out: outs[0] ?? null, outs, tally: t };
+}
+
+/** Eliminação: depois de cada votação, tira o mais votado e decide se a rodada continua. */
+export function elimPatch(room: Room): Patch {
+  const r = room.round!,
+    st = r.stage || 1,
+    res = tallyVotes(room),
+    u = res.outs?.[0] || null;
+  const outs: Out[] = (r.outs || []).concat(u ? [{ u, imp: r.imps.includes(u), st }] : []);
+  const alive = liveIds(room).filter((id) => id !== u);
+  const impsAlive = r.imps.filter((id) => alive.includes(id));
+  const crew = alive.length - impsAlive.length;
+  const stageRes = { [stageKey(room)]: res };
+  const end: VoteResult["end"] | null = impsAlive.length === 0 ? "caught" : impsAlive.length >= crew || st >= r.players.length ? "parity" : null;
+  if (end)
+    return {
+      status: "result",
+      updatedAt: now(),
+      round: { alive, outs },
+      result: { ...stageRes, [roundKey(room)]: { out: u, outs: outs.map((o) => o.u), tally: res.tally, end } },
+    };
+  const start = Math.floor(Math.random() * alive.length);
+  return {
+    status: "clues",
+    updatedAt: now(),
+    round: { alive, outs, stage: st + 1, order: alive.map((_, i) => alive[(start + i) % alive.length]) },
+    result: stageRes,
+  };
+}
+
+/** Impostores pegos na rodada (os que podem chutar). */
+export function caughtImps(room: Room): string[] {
+  const r = room.round!;
+  if (isElim(room)) return (r.outs || []).filter((o) => o.imp).map((o) => o.u);
+  const res = room.result?.[roundKey(room)];
+  const outs = res?.outs || (res?.out && res.out !== "none" ? [res.out] : []);
+  return r.imps.filter((id) => outs.includes(id));
+}
+
+/** Chutes da rodada por jogador (aceita o formato antigo, de um chute só). */
+export function guessesOf(room: Room): Record<string, Guess> {
+  const g = room.guess?.[roundKey(room)] as unknown;
+  if (!g || typeof g !== "object") return {};
+  if (typeof (g as Guess).t === "string") {
+    const out = room.result?.[roundKey(room)]?.out;
+    return out ? { [out]: g as Guess } : {};
+  }
+  return Object.fromEntries(Object.entries(g as Record<string, Guess | null>).filter((e): e is [string, Guess] => !!e[1]));
 }
 
 export interface Outcome {
   win: boolean;
+  /** falta o chute de algum impostor pego */
   pending?: boolean;
+  /** impostores pegos que ainda podem chutar */
+  guessers?: string[];
   title: string;
   sub: string;
 }
@@ -168,25 +266,57 @@ export interface Outcome {
 export function outcome(room: Room, nick: (id: string) => string): Outcome {
   const r = room.round!,
     res = room.result?.[roundKey(room)] || ({} as Partial<VoteResult>),
-    g = room.guess?.[roundKey(room)];
+    G = guessesOf(room);
   const imps = r.imps,
     out = res.out;
   const q = (s: string) => "“" + esc(s) + "”";
+  const many = imps.length > 1;
+  const list = (ids: string[]) => (ids.length <= 1 ? ids.map(nick).join("") : ids.slice(0, -1).map(nick).join(", ") + " e " + nick(ids[ids.length - 1]));
   if (imps.length === 0)
     return { win: out === "none", title: out === "none" ? "Na mosca!" : "Erraram!", sub: "Rodada caótica: não tinha impostor nenhum." };
   if (imps.length === r.players.length)
     return { win: false, title: "Todo mundo era impostor!", sub: "Rodada caótica. Cada um recebeu a mesma tela vermelha." };
-  if (!out) return { win: false, title: "O impostor escapou", sub: "Empate na votação, ninguém foi eliminado." };
-  if (out === "none") return { win: false, title: "O impostor venceu", sub: "Vocês votaram que ninguém era impostor." };
-  if (imps.includes(out)) {
-    if (g?.ok) return { win: false, title: "Roubou a vitória!", sub: nick(out) + " era impostor, mas acertou o nome secreto: " + q(g.t) + "." };
-    if (g) return { win: true, title: "Pegaram o impostor!", sub: nick(out) + " era impostor e chutou " + q(g.t) + ". Errou." };
+
+  const caught = caughtImps(room);
+  const escaped = imps.filter((id) => !caught.includes(id));
+  const outsList = isElim(room) ? (r.outs || []).map((o) => o.u) : res.outs || (out && out !== "none" ? [out] : []);
+  const innocentOut = outsList.filter((id) => !imps.includes(id));
+
+  if (isElim(room) && res.end === "parity")
+    return {
+      win: false,
+      title: escaped.length > 1 ? "Os impostores venceram" : "O impostor venceu",
+      sub: list(escaped) + (escaped.length > 1 ? " sobraram" : " sobrou") + " até o fim: o elenco ficou sem maioria." + (caught.length ? " " + list(caught) + (caught.length > 1 ? " foram pegos." : " foi pego.") : ""),
+    };
+
+  if (!caught.length) {
+    if (!out) return { win: false, title: many ? "Os impostores escaparam" : "O impostor escapou", sub: "Empate na votação, ninguém foi eliminado." };
+    if (out === "none") return { win: false, title: many ? "Os impostores venceram" : "O impostor venceu", sub: "Vocês votaram que ninguém era impostor." };
+    return { win: false, title: many ? "Os impostores venceram" : "O impostor venceu", sub: list(innocentOut) + (innocentOut.length > 1 ? " eram do elenco." : " era do elenco.") };
+  }
+
+  const waiting = caught.filter((id) => !G[id]);
+  const escNote = escaped.length ? " " + list(escaped) + (escaped.length > 1 ? " escaparam." : " escapou.") : "";
+  if (waiting.length)
     return {
       win: true,
       pending: true,
-      title: "Pegaram o impostor!",
-      sub: nick(out) + " era impostor. Agora ele tem um chute para adivinhar o nome secreto.",
+      guessers: waiting,
+      title: caught.length > 1 ? "Pegaram " + caught.length + " impostores!" : "Pegaram o impostor!",
+      sub:
+        list(caught) +
+        (caught.length > 1 ? " eram impostores. Agora cada um tem um chute para adivinhar a carta secreta." : " era impostor. Agora tem um chute para adivinhar a carta secreta.") +
+        escNote,
     };
-  }
-  return { win: false, title: "O impostor venceu", sub: nick(out) + " era do elenco." };
+
+  const right = caught.filter((id) => G[id]?.ok);
+  const parts = caught.map((id) => nick(id) + " chutou " + q(G[id].t) + (G[id].ok ? " e acertou" : " e errou"));
+  const sub = parts.join("; ") + "." + escNote;
+  if (!right.length && !escaped.length) return { win: true, title: "Vitória do elenco!", sub };
+  const winners = right.concat(escaped);
+  return {
+    win: false,
+    title: winners.length > 1 ? "Os impostores venceram" : right.length ? "Roubou a vitória!" : "O impostor venceu",
+    sub: (right.length ? list(right) + (right.length > 1 ? " acertaram" : " acertou") + " a carta secreta. " : "") + sub,
+  };
 }

@@ -135,6 +135,13 @@ footer{border-top:1px solid var(--line);padding-block:24px;color:var(--muted);fo
 .clue.wait .tx{color:var(--muted);font-weight:500;font-size:14px}
 .myturn{display:grid;grid-template-columns:1fr auto;gap:8px}
 .votes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mode{display:flex;flex-direction:column;gap:4px;text-align:left;border:1.5px solid var(--line);background:var(--card);color:var(--fg);border-radius:12px;padding:12px;min-width:0}
+.mode b{font-size:14px}
+.mode span{font-size:12.5px;color:var(--muted);line-height:1.4}
+.mode[aria-pressed="true"]{border-color:var(--accent);background:rgba(229,27,27,.1)}
+.mode:disabled{cursor:default}
+@media (max-width:480px){.modes{grid-template-columns:1fr}}
 .chat-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .msg{display:flex;align-items:flex-end;gap:8px;min-width:0;max-width:88%}
 .msg.me{align-self:flex-end;flex-direction:row-reverse}

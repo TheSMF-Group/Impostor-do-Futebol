@@ -20,6 +20,17 @@ export interface Settings {
   hint: boolean;
   rounds: number;
   cats: string[];
+  /** com 2 ou 3 impostores: "multi" = votação única com um voto por impostor; "elim" = tira um por volta de pistas */
+  voteMode?: VoteMode;
+}
+
+export type VoteMode = "multi" | "elim";
+
+/** Quem saiu numa etapa da eliminação. */
+export interface Out {
+  u: string;
+  imp: boolean;
+  st: number;
 }
 
 export interface Player {
@@ -40,6 +51,14 @@ export interface Round {
   order: string[];
   laps: number;
   cards: Record<string, string>;
+  /** modo de votação desta rodada (sem campo = "multi" com 1 voto) */
+  mode?: VoteMode;
+  /** quantos suspeitos cada um escolhe na votação única */
+  k?: number;
+  /** eliminação: etapa atual (1, 2, 3…), quem segue no jogo e quem já saiu */
+  stage?: number;
+  alive?: string[];
+  outs?: Out[];
 }
 
 export interface Clue {
@@ -55,8 +74,13 @@ export interface ChatMsg {
 }
 
 export interface VoteResult {
+  /** o mais votado ("none" = Ninguém é impostor; null = empate) */
   out: string | null;
+  /** todos que saíram nesta votação (votação única com vários impostores) */
+  outs?: string[];
   tally: Record<string, number>;
+  /** eliminação: por que a rodada acabou */
+  end?: "caught" | "parity";
 }
 
 export interface Guess {
@@ -79,7 +103,8 @@ export interface Room {
   clues: Record<string, Record<string, Clue>>;
   votes: Record<string, Record<string, string>>;
   result: Record<string, VoteResult>;
-  guess: Record<string, Guess>;
+  /** chute de cada impostor pego, por rodada e por jogador */
+  guess: Record<string, Record<string, Guess>>;
   /** chat da votação, por rodada ("r3") e id da mensagem; null = apagado */
   chat?: Record<string, Record<string, ChatMsg | null> | null>;
   used: string[];

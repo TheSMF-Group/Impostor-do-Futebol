@@ -4,7 +4,26 @@ import { cardBarHTML, closeReveal, openReveal, secretHTML } from "./card";
 import { THEME_ORDER, THEMES, loadMedia, loadThemes, themeName } from "./data";
 import { cue } from "./moments";
 import { isMuted, setMuted, unlockOnGesture } from "./sfx";
-import { activeIds, catsOf, genCode, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, roundKey, tallyVotes } from "./rules";
+import {
+  activeIds,
+  catsOf,
+  cluesByPlayer,
+  elimPatch,
+  genCode,
+  guessOk,
+  guessesOf,
+  isElim,
+  liveIds,
+  maxImps,
+  newRoomDoc,
+  newRoundPatch,
+  outcome,
+  picksOf,
+  roundKey,
+  stageKey,
+  tallyVotes,
+  votesPerPlayer,
+} from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
 import type { ChatMsg, Patch, Room } from "./types";
 import { $, dec, esc, ls, now } from "./util";
@@ -307,7 +326,7 @@ function chatMsgs(room: Room): [string, ChatMsg][] {
 
 function chatHTML(room: Room, open: boolean): string {
   const list = chatMsgs(room);
-  const canSend = open && !!room.round?.players.includes(S.me);
+  const canSend = open && liveIds(room).includes(S.me);
   const mine = list.filter(([, m]) => m.u === S.me).length;
   const rows = list.length
     ? list
@@ -323,7 +342,7 @@ function chatHTML(room: Room, open: boolean): string {
         ? `<p class="note" style="margin-top:8px">Você chegou ao limite de ${CHAT_MAX_PER_PLAYER} mensagens nesta rodada.</p>`
         : `<div class="myturn" style="margin-top:10px"><input class="field" id="chatIn" maxlength="${CHAT_MAX_LEN}" placeholder="Explique sua pista…" autocomplete="off" aria-label="Mensagem para a sala"><button class="btn btn-red" type="button" data-act="chat">Enviar</button></div>`
       : open
-        ? `<p class="note" style="margin-top:8px">Só quem está jogando esta rodada pode escrever.</p>`
+        ? `<p class="note" style="margin-top:8px">Só quem ainda está no jogo pode escrever.</p>`
         : ""
   }</div>`;
 }
@@ -336,6 +355,7 @@ function lobbyHTML(room: Room): string {
     mi = maxImps(n);
   const dis = h ? "" : "disabled";
   const cats = catsOf(room);
+  const elimSet = Math.min(s.imps, mi) >= 2 && s.voteMode === "elim";
   const sw = (k: "inf" | "chaos" | "hint", t: string, d: string) =>
     `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-act="opt" data-k="${k}" ${s[k] ? "checked" : ""} ${dis} aria-label="${t}"><span></span></label></div>`;
   return `<div class="kicker center">Sala de espera</div>
@@ -350,7 +370,22 @@ function lobbyHTML(room: Room): string {
   ${n < 3 ? `<p class="note" style="margin-top:10px">Faltam ${3 - n} para começar.</p>` : ""}</div>
   <div class="panel"><h3>Regras da rodada${h ? "" : " <span class='note'>(o anfitrião escolhe)</span>"}</h3>
     <div class="row"><div><div class="t">Impostores</div><div class="d">Até ${mi} com ${n} jogador${n > 1 ? "es" : ""}.</div></div><div class="stepper"><button type="button" data-act="imps" data-d="-1" ${!h || s.imps <= 1 ? "disabled" : ""} aria-label="Menos impostores">−</button><output>${Math.min(s.imps, mi)}</output><button type="button" data-act="imps" data-d="1" ${!h || s.imps >= mi ? "disabled" : ""} aria-label="Mais impostores">+</button></div></div>
-    <div class="row"><div><div class="t">Voltas de pistas</div><div class="d">Quantas pistas cada um dá antes da votação.</div></div><div class="stepper"><button type="button" data-act="rounds" data-d="-1" ${!h || s.rounds <= 1 ? "disabled" : ""} aria-label="Menos voltas">−</button><output>${s.rounds}</output><button type="button" data-act="rounds" data-d="1" ${!h || s.rounds >= 3 ? "disabled" : ""} aria-label="Mais voltas">+</button></div></div>
+    ${
+      Math.min(s.imps, mi) >= 2
+        ? `<div class="row" style="display:block"><div class="t">Tipo de votação</div><div class="d" style="max-width:none;margin-bottom:8px">Vale quando a rodada tem ${Math.min(s.imps, mi)} impostores.</div><div class="modes">${(
+            [
+              ["multi", "Votação única", `Todo mundo dá as pistas e, no fim, cada um vota em ${Math.min(s.imps, mi)} suspeitos. Os impostores pegos chutam a carta.`],
+              ["elim", "Eliminação por rodada", "Uma volta de pistas, votação e sai um. Repete até sair todos os impostores. No fim, cada impostor chuta a carta."],
+            ] as const
+          )
+            .map(
+              ([k, t, d2]) =>
+                `<button type="button" class="mode" data-act="vmode" data-k="${k}" aria-pressed="${(s.voteMode || "multi") === k}" ${dis}><b>${t}</b><span>${d2}</span></button>`,
+            )
+            .join("")}</div></div>`
+        : ""
+    }
+    <div class="row"><div><div class="t">Voltas de pistas</div><div class="d">${elimSet ? "Na eliminação, cada etapa tem uma volta de pistas." : "Quantas pistas cada um dá antes da votação."}</div></div><div class="stepper"><button type="button" data-act="rounds" data-d="-1" ${!h || elimSet || s.rounds <= 1 ? "disabled" : ""} aria-label="Menos voltas">−</button><output>${elimSet ? 1 : s.rounds}</output><button type="button" data-act="rounds" data-d="1" ${!h || elimSet || s.rounds >= 3 ? "disabled" : ""} aria-label="Mais voltas">+</button></div></div>
     ${sw("inf", "Infiltrado", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor.")}
     ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
     ${sw("hint", "Dica do impostor", "Jogadores: o impostor vê o país e a posição. Times: a primeira letra e o tamanho do nome.")}
@@ -367,12 +402,12 @@ function lobbyHTML(room: Room): string {
 
 function cluesHTML(room: Room): string {
   const r = room.round!,
-    list = room.clues?.[rk()] || {},
+    list = room.clues?.[stageKey(room)] || {},
     order = r.order,
     idx = Object.keys(list).length;
   const turn = order[idx];
   const mine = turn === S.me;
-  const perRound = r.players.length;
+  const perRound = Math.max(1, Math.round(order.length / (r.laps || 1)));
   let rows = "";
   order.forEach((id, i) => {
     if (i % perRound === 0 && r.laps > 1) rows += `<div class="kicker" style="margin-top:${i ? 8 : 0}px">Volta ${i / perRound + 1}</div>`;
@@ -382,8 +417,9 @@ function cluesHTML(room: Room): string {
       rows += `<div class="clue now">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx" style="color:var(--red);font-size:14px">${mine ? "Sua vez" : "Pensando…"}</span></div>`;
     else rows += `<div class="clue wait">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx">—</span></div>`;
   });
-  return `<div class="kicker center">Rodada ${room.rn} · pistas</div>
+  return `<div class="kicker center">Rodada ${room.rn} · ${isElim(room) ? "etapa " + (r.stage || 1) + " · pistas" : "pistas"}</div>
   ${cardBarHTML()}
+  ${elimHTML(room)}
   ${
     mine
       ? `<div class="panel"><h3>Sua vez de dar a pista</h3><div class="myturn"><input class="field" id="clueIn" maxlength="24" placeholder="Uma palavra" autocomplete="off" aria-label="Sua pista"><button class="btn btn-red" type="button" data-act="clue">Enviar</button></div><p class="note" style="margin-top:8px">Não vale o nome, o clube do jogador nem parte exata do nome.</p></div>`
@@ -393,29 +429,53 @@ function cluesHTML(room: Room): string {
   ${isHost() ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}`;
 }
 
+/** Eliminação: quem já saiu e se era impostor. */
+function elimHTML(room: Room): string {
+  if (!isElim(room)) return "";
+  const outs = room.round?.outs || [];
+  const gone = !liveIds(room).includes(S.me) && room.round!.players.includes(S.me);
+  const left = room.round!.imps.length - outs.filter((o) => o.imp).length;
+  return `${gone ? `<div class="banner center"><b>Você foi eliminado.</b>Acompanhe o resto da rodada. Você não dá mais pistas nem vota.</div>` : ""}${
+    outs.length
+      ? `<div class="panel"><h3>Eliminados</h3><div class="roles">${outs
+          .map((o) => `<div class="${o.imp ? "bad" : ""}"><span>${esc(nickOf(o.u))} <span class="note" style="font-weight:500">· etapa ${o.st}</span></span><em>${o.imp ? "Impostor" : "Inocente"}</em></div>`)
+          .join("")}</div><p class="note" style="margin-top:8px">Ainda ${left === 1 ? "falta 1 impostor" : "faltam " + left + " impostores"}.</p></div>`
+      : ""
+  }`;
+}
+
 function voteHTML(room: Room): string {
   const r = room.round!,
-    vs = room.votes?.[rk()] || {},
-    ids = r.players,
-    my = vs[S.me],
+    vs = room.votes?.[stageKey(room)] || {},
+    ids = liveIds(room),
+    k = votesPerPlayer(room),
+    my = picksOf(vs[S.me]),
     inRound = ids.includes(S.me);
-  const done = ids.filter((id) => vs[id]).length;
-  const byP: Record<string, string[]> = {};
-  for (const c of Object.values(room.clues?.[rk()] || {})) (byP[c.u] ||= []).push(c.t);
-  return `<div class="kicker center">Rodada ${room.rn} · votação</div>
-  <h2 class="big center">Quem é o impostor?</h2>
+  const done = ids.filter((id) => voteDone(picksOf(vs[id]), k)).length;
+  const byP = cluesByPlayer(room);
+  const title = k > 1 ? `Quem são os ${k} impostores?` : isElim(room) ? "Quem sai agora?" : "Quem é o impostor?";
+  const hint =
+    k > 1
+      ? `Escolha ${k} suspeitos${my.length && !my.includes("none") ? ` · ${my.length} de ${k}` : ""}. `
+      : "";
+  return `<div class="kicker center">Rodada ${room.rn} · ${isElim(room) ? "etapa " + (r.stage || 1) + " · " : ""}votação</div>
+  <h2 class="big center">${title}</h2>
   ${cardBarHTML()}
-  <p class="note center">${done} de ${ids.length} votaram${my ? ". Você pode trocar o voto até todos votarem." : "."}</p>
+  ${elimHTML(room)}
+  <p class="note center">${hint}${done} de ${ids.length} votaram${my.length ? ". Você pode trocar o voto até todos votarem." : "."}</p>
   <div class="votes">${ids
     .map(
       (id) =>
-        `<button type="button" class="vote" data-act="vote" data-id="${esc(id)}" aria-pressed="${my === id}" ${!inRound ? "disabled" : ""}>${dot(id)}<span>${esc(nickOf(id))}<br><em>${esc((byP[id] || []).join(" · ") || "sem pista")}</em></span></button>`,
+        `<button type="button" class="vote" data-act="vote" data-id="${esc(id)}" aria-pressed="${my.includes(id)}" ${!inRound ? "disabled" : ""}>${dot(id)}<span>${esc(nickOf(id))}<br><em>${esc((byP[id] || []).join(" · ") || "sem pista")}</em></span></button>`,
     )
     .join("")}
-  <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my === "none"}" ${!inRound ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">Ninguém é impostor</span></button></div>
+  <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my.includes("none")}" ${!inRound ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">${isElim(room) ? "Ninguém sai agora" : "Ninguém é impostor"}</span></button></div>
   ${chatHTML(room, true)}
   ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}`;
 }
+
+/** Um voto está completo com k suspeitos ou com "Ninguém". */
+const voteDone = (picks: string[], k: number): boolean => picks.includes("none") || picks.length >= k;
 
 function resultHTML(room: Room): string {
   const r = room.round!,
@@ -423,16 +483,23 @@ function resultHTML(room: Room): string {
     o = outcome(room, (id) => esc(nickOf(id))),
     word = dec(r.secret),
     decoy = r.decoy ? dec(r.decoy) : "";
-  const canGuess = o.pending && res?.out === S.me;
+  const G = guessesOf(room);
+  const canGuess = !!o.pending && !!o.guessers?.includes(S.me) && !G[S.me];
+  const waitFor = (o.guessers || []).filter((id) => id !== S.me);
   const tally = res?.tally || {};
+  const outAt: Record<string, number> = {};
+  for (const x of r.outs || []) outAt[x.u] = x.st;
   return `<div class="kicker center">Rodada ${room.rn} · resultado</div>
   <div class="result ${o.win ? "win" : "lose"}">${o.win ? "" : `<div style="font-family:var(--pixel);color:var(--red);font-size:52px;line-height:.9;text-shadow:3px 3px 0 var(--red-deep)">Impostor</div>`}<h2>${o.title}</h2><p>${o.sub}</p>${r.chaos && r.imps.length && r.imps.length < r.players.length ? `<p>${esc(r.chaos)}</p>` : ""}<p style="margin-top:14px;font-size:13px;opacity:.75">Carta secreta · ${esc(themeName(r.cat))}</p>${o.pending ? `<div class="sw-word">Revelada depois do chute</div>` : secretHTML(r.cat, r.sid ? dec(r.sid) : null, word)}</div>
-  ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div></div>` : o.pending ? `<div class="banner center">Esperando o chute de ${esc(nickOf(res!.out!))}…</div>` : ""}
+  ${canGuess && waitFor.length ? `<div class="banner center">Esperando também o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}.</div>` : ""}
+  ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div></div>` : o.pending && waitFor.length ? `<div class="banner center">Esperando o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}…</div>` : ""}
   <div class="panel"><h3>Quem era quem</h3><div class="roles">${r.players
     .map((id) => {
       const bad = r.imps.includes(id);
       const v = tally[id] || 0;
-      return `<div class="${bad ? "bad" : ""}"><span>${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${v} voto${v === 1 ? "" : "s"}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></div>`;
+      const info = isElim(room) ? (outAt[id] ? "saiu na etapa " + outAt[id] : "ficou até o fim") : v + " voto" + (v === 1 ? "" : "s");
+      const gs = G[id] ? ` · chutou “${esc(G[id].t)}” ${G[id].ok ? "✓" : "✗"}` : "";
+      return `<div class="${bad ? "bad" : ""}"><span>${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${info}${gs}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></div>`;
     })
     .join("")}</div></div>
   ${chatMsgs(room).length ? chatHTML(room, false) : ""}
@@ -444,8 +511,9 @@ function resultHTML(room: Room): string {
 async function closeVote(): Promise<void> {
   if (S.closing || !S.room) return;
   S.closing = true;
-  const res = tallyVotes(S.room);
-  await write(() => ref().update({ status: "result", result: { [rk()]: res }, updatedAt: now() }));
+  const room = S.room;
+  const patch: Patch = isElim(room) ? elimPatch(room) : { status: "result", result: { [rk()]: tallyVotes(room) }, updatedAt: now() };
+  await write(() => ref().update(patch));
   S.closing = false;
 }
 
@@ -453,8 +521,9 @@ async function closeVote(): Promise<void> {
 function autoClose(): void {
   const room = S.room;
   if (!room || room.status !== "vote" || !isHost() || !room.round) return;
-  const vs = room.votes?.[rk()] || {};
-  if (room.round.players.every((id) => vs[id] || !room.players?.[id])) void closeVote();
+  const vs = room.votes?.[stageKey(room)] || {},
+    k = votesPerPlayer(room);
+  if (liveIds(room).every((id) => voteDone(picksOf(vs[id]), k) || !room.players?.[id])) void closeVote();
 }
 
 async function act(a: string, b?: HTMLElement): Promise<void> {
@@ -514,10 +583,11 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         return;
       }
       const r = room!.round!,
-        i = Object.keys(room!.clues?.[rk()] || {}).length;
+        sk = stageKey(room!),
+        i = Object.keys(room!.clues?.[sk] || {}).length;
       if (r.order[i] !== S.me) return;
       const last = i === r.order.length - 1;
-      if (await upd({ clues: { [rk()]: { [i]: { u: S.me, t } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) })) S.draft = "";
+      if (await upd({ clues: { [sk]: { [i]: { u: S.me, t } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) })) S.draft = "";
       break;
     }
     case "chat": {
@@ -526,7 +596,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         roomErr("Escreva uma mensagem antes de enviar.");
         return;
       }
-      if (room!.status !== "vote" || !room!.round?.players.includes(S.me)) return;
+      if (room!.status !== "vote" || !liveIds(room!).includes(S.me)) return;
       if (chatMsgs(room!).filter(([, m]) => m.u === S.me).length >= CHAT_MAX_PER_PLAYER) return;
       const id = S.me + "-" + Date.now().toString(36);
       S.chatDraft = "";
@@ -537,16 +607,32 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
     }
     case "skip": {
       const r = room!.round!,
-        i = Object.keys(room!.clues?.[rk()] || {}).length;
+        sk = stageKey(room!),
+        i = Object.keys(room!.clues?.[sk] || {}).length;
       const last = i === r.order.length - 1;
-      await upd({ clues: { [rk()]: { [i]: { u: r.order[i], t: "(pulou a vez)" } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) });
+      await upd({ clues: { [sk]: { [i]: { u: r.order[i], t: "(pulou a vez)" } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) });
       break;
     }
     case "tovote":
       await upd({ status: "vote", updatedAt: now() });
       break;
-    case "vote":
-      await upd({ votes: { [rk()]: { [S.me]: b!.dataset.id! } }, updatedAt: now() });
+    case "vote": {
+      const id = b!.dataset.id!,
+        k = votesPerPlayer(room!),
+        sk = stageKey(room!);
+      if (!liveIds(room!).includes(S.me)) return;
+      let picks = picksOf(room!.votes?.[sk]?.[S.me]).filter((x) => x !== "none");
+      if (id === "none" || k === 1) picks = [id];
+      else if (picks.includes(id)) picks = picks.filter((x) => x !== id);
+      else if (picks.length >= k) {
+        roomErr(`Você já escolheu ${k} suspeitos. Toque num deles para trocar.`);
+        return;
+      } else picks.push(id);
+      await upd({ votes: { [sk]: { [S.me]: picks.join(",") } }, updatedAt: now() });
+      break;
+    }
+    case "vmode":
+      await upd({ settings: { voteMode: b!.dataset.k! }, updatedAt: now() });
       break;
     case "close":
       await closeVote();
@@ -557,8 +643,10 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         roomErr("Escreva seu chute.");
         return;
       }
+      const o = outcome(room!, (id) => id);
+      if (!o.guessers?.includes(S.me) || guessesOf(room!)[S.me]) return;
       const ok = guessOk(t, dec(room!.round!.secret), room!.round!.cat);
-      if (await upd({ guess: { [rk()]: { t, ok } }, updatedAt: now() })) S.guessDraft = "";
+      if (await upd({ guess: { [rk()]: { [S.me]: { t, ok } } }, updatedAt: now() })) S.guessDraft = "";
       break;
     }
     case "leave": {
