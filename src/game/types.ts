@@ -22,6 +22,8 @@ export interface Settings {
   cats: string[];
   /** com 2 ou 3 impostores: "multi" = votação única com um voto por impostor; "elim" = tira um por volta de pistas */
   voteMode?: VoteMode;
+  /** segundos para cada pista (0 ou sem campo = ilimitado) */
+  clueTime?: number;
 }
 
 export type VoteMode = "multi" | "elim";
@@ -107,6 +109,8 @@ export interface Room {
   guess: Record<string, Record<string, Guess>>;
   /** chat da votação, por rodada ("r3") e id da mensagem; null = apagado */
   chat?: Record<string, Record<string, ChatMsg | null> | null>;
+  /** quando começou a vez atual de dar pista (relógio de quem gravou) */
+  turnAt?: number;
   used: string[];
   /** versão do estado nas salas MQTT */
   _v?: number;

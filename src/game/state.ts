@@ -15,6 +15,14 @@ export const S = {
   draft: "",
   guessDraft: "",
   chatDraft: "",
+  /** voto ainda não confirmado: chave da etapa e suspeitos marcados */
+  voteDraft: null as { k: string; picks: string[] } | null,
+  /** trocando um voto já confirmado */
+  voteEdit: false,
+  /** painel "Gerenciar jogadores" aberto (anfitrião) */
+  manageOpen: false,
+  /** jogador com a remoção esperando confirmação */
+  kickAsk: null as string | null,
   readOnly: false,
   closing: false,
 };

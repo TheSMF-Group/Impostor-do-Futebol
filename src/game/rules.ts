@@ -24,11 +24,12 @@ export const stageKey = (r: Pick<Room, "rn" | "round">): string => {
 
 export const isElim = (r: Pick<Room, "round">): boolean => r.round?.mode === "elim";
 
-/** Quem ainda joga nesta etapa (na eliminação, quem não saiu). */
-export const liveIds = (r: Pick<Room, "round">): string[] => r.round?.alive || r.round?.players || [];
+/** Quem ainda joga nesta etapa: na eliminação, quem não saiu; e só quem continua na sala. */
+export const liveIds = (r: Pick<Room, "round" | "players">): string[] =>
+  (r.round?.alive || r.round?.players || []).filter((id) => !!r.players?.[id]);
 
 /** Quantos suspeitos cada um escolhe na votação. */
-export const votesPerPlayer = (r: Pick<Room, "round">): number => (isElim(r) ? 1 : Math.max(1, r.round?.k || 1));
+export const votesPerPlayer = (r: Pick<Room, "round" | "players">): number => (isElim(r) ? 1 : Math.max(1, r.round?.k || 1));
 
 /** Voto guardado como "id" ou "id1,id2" (votação única com vários impostores). */
 export const picksOf = (v: string | undefined | null): string[] => (v ? String(v).split(",").filter(Boolean) : []);
@@ -58,7 +59,7 @@ export function newRoomDoc(code: string, host: string, nick: string): Room {
     status: "lobby",
     createdAt: t,
     updatedAt: t,
-    settings: { imps: 1, inf: false, chaos: false, hint: false, rounds: 1, cats: THEME_ORDER.slice() },
+    settings: { imps: 1, inf: false, chaos: false, hint: false, rounds: 1, cats: THEME_ORDER.slice(), clueTime: 60 },
     players: { [host]: { nick, seat: 0, at: t } },
     rn: 0,
     round: null,
@@ -135,6 +136,7 @@ export function newRoundPatch(room: Room): Patch {
     status: "clues",
     rn: (room.rn || 0) + 1,
     updatedAt: now(),
+    turnAt: now(),
     used: used.concat(cat + ":" + it[0]).slice(-150),
     // apaga o chat da rodada anterior para a sala não crescer
     ...(room.rn ? { chat: { ["r" + room.rn]: null } } : {}),
@@ -227,6 +229,7 @@ export function elimPatch(room: Room): Patch {
   return {
     status: "clues",
     updatedAt: now(),
+    turnAt: now(),
     round: { alive, outs, stage: st + 1, order: alive.map((_, i) => alive[(start + i) % alive.length]) },
     result: stageRes,
   };
@@ -277,8 +280,11 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
   if (imps.length === r.players.length)
     return { win: false, title: "Todo mundo era impostor!", sub: "Rodada caótica. Cada um recebeu a mesma tela vermelha." };
 
+  const here = (id: string) => !!room.players?.[id];
   const caught = caughtImps(room);
-  const escaped = imps.filter((id) => !caught.includes(id));
+  const escaped = imps.filter((id) => !caught.includes(id) && here(id));
+  if (!caught.length && !escaped.length)
+    return { win: false, title: many ? "Os impostores saíram" : "O impostor saiu", sub: "Rodada sem vencedor: " + (many ? "os impostores saíram" : "o impostor saiu") + " da sala." };
   const outsList = isElim(room) ? (r.outs || []).map((o) => o.u) : res.outs || (out && out !== "none" ? [out] : []);
   const innocentOut = outsList.filter((id) => !imps.includes(id));
 
@@ -295,7 +301,8 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
     return { win: false, title: many ? "Os impostores venceram" : "O impostor venceu", sub: list(innocentOut) + (innocentOut.length > 1 ? " eram do elenco." : " era do elenco.") };
   }
 
-  const waiting = caught.filter((id) => !G[id]);
+  // quem saiu da sala não chuta
+  const waiting = caught.filter((id) => !G[id] && here(id));
   const escNote = escaped.length ? " " + list(escaped) + (escaped.length > 1 ? " escaparam." : " escapou.") : "";
   if (waiting.length)
     return {
@@ -310,8 +317,9 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
     };
 
   const right = caught.filter((id) => G[id]?.ok);
-  const parts = caught.map((id) => nick(id) + " chutou " + q(G[id].t) + (G[id].ok ? " e acertou" : " e errou"));
-  const sub = parts.join("; ") + "." + escNote;
+  const guessed = caught.filter((id) => G[id]);
+  const parts = guessed.map((id) => nick(id) + " chutou " + q(G[id].t) + (G[id].ok ? " e acertou" : " e errou"));
+  const sub = ((parts.length ? parts.join("; ") + "." : "") + escNote).trim();
   if (!right.length && !escaped.length) return { win: true, title: "Vitória do elenco!", sub };
   const winners = right.concat(escaped);
   return {

@@ -228,7 +228,7 @@ function enterRoom(c: string, silent = false): void {
       } else if (!s.metadata.fromCache) {
         if (wasIn) {
           exitRoom();
-          homeErr("Você saiu da sala " + c + ".");
+          homeErr("Você não está mais na sala " + c + ".");
           return;
         }
         // entrada ainda não confirmada pelo anfitrião (salas MQTT): espera um pouco
@@ -385,6 +385,9 @@ function lobbyHTML(room: Room): string {
             .join("")}</div></div>`
         : ""
     }
+    <div class="row"><div><div class="t">Tempo para dar dica</div><div class="d">Acabou o tempo, a vez passa para o próximo.</div></div><div class="seg">${CLUE_TIMES.map(
+      ([v, t]) => `<button type="button" data-act="clueTime" data-k="${v}" aria-pressed="${(s.clueTime || 0) === v}" ${dis}>${t}</button>`,
+    ).join("")}</div></div>
     <div class="row"><div><div class="t">Voltas de pistas</div><div class="d">${elimSet ? "Na eliminação, cada etapa tem uma volta de pistas." : "Quantas pistas cada um dá antes da votação."}</div></div><div class="stepper"><button type="button" data-act="rounds" data-d="-1" ${!h || elimSet || s.rounds <= 1 ? "disabled" : ""} aria-label="Menos voltas">−</button><output>${elimSet ? 1 : s.rounds}</output><button type="button" data-act="rounds" data-d="1" ${!h || elimSet || s.rounds >= 3 ? "disabled" : ""} aria-label="Mais voltas">+</button></div></div>
     ${sw("inf", "Infiltrado", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor.")}
     ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
@@ -425,7 +428,9 @@ function cluesHTML(room: Room): string {
       ? `<div class="panel"><h3>Sua vez de dar a pista</h3><div class="myturn"><input class="field" id="clueIn" maxlength="24" placeholder="Uma palavra" autocomplete="off" aria-label="Sua pista"><button class="btn btn-red" type="button" data-act="clue">Enviar</button></div><p class="note" style="margin-top:8px">Não vale o nome, o clube do jogador nem parte exata do nome.</p></div>`
       : `<div class="banner center">Vez de <b style="display:inline">${esc(nickOf(turn))}</b>. Fiquem de olho nas pistas.</div>`
   }
+  ${timerHTML(room, mine)}
   <div class="panel"><h3>Pistas</h3><div class="clues">${rows}</div></div>
+  ${manageHTML(room)}
   ${isHost() ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}`;
 }
 
@@ -444,34 +449,139 @@ function elimHTML(room: Room): string {
   }`;
 }
 
+/** Suspeitos que aparecem marcados: o rascunho enquanto não confirmou ou está trocando; senão o voto gravado. */
+function myPicks(room: Room): { picks: string[]; confirmed: boolean } {
+  const sk = stageKey(room),
+    k = votesPerPlayer(room);
+  const saved = picksOf(room.votes?.[sk]?.[S.me]);
+  const confirmed = voteDone(saved, k);
+  if (S.voteDraft?.k !== sk) {
+    S.voteDraft = { k: sk, picks: [] };
+    S.voteEdit = false;
+  }
+  if (confirmed && !S.voteEdit) return { picks: saved, confirmed: true };
+  // tira do rascunho quem não está mais na votação
+  const live = liveIds(room);
+  S.voteDraft.picks = S.voteDraft.picks.filter((x) => x === "none" || live.includes(x));
+  return { picks: S.voteDraft.picks, confirmed: false };
+}
+
+/* ---------- tempo para dar dica ---------- */
+const CLUE_TIMES: [number, string][] = [
+  [120, "2 min"],
+  [60, "1 min"],
+  [30, "30 seg"],
+  [0, "Ilimitado"],
+];
+
+/** Fim da vez atual (ms) ou null quando o tempo é ilimitado. */
+function turnEnd(room: Room): number | null {
+  const t = room.settings?.clueTime || 0;
+  if (!t || room.status !== "clues" || !room.turnAt) return null;
+  return room.turnAt + t * 1000;
+}
+
+function fmtLeft(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+
+function timerHTML(room: Room, mine: boolean): string {
+  const end = turnEnd(room);
+  if (!end) return "";
+  const left = end - Date.now();
+  return `<div class="ttimer${mine ? " mine" : ""}${left <= 10000 ? " low" : ""}" id="turnTimer" data-end="${end}" role="timer"><span>${mine ? "Seu tempo" : "Tempo da vez"}</span><b>${fmtLeft(left)}</b></div>`;
+}
+
+let skipKey = "";
+/** A cada segundo: atualiza o relógio e, no anfitrião, passa a vez quando o tempo acaba. */
+function tick(): void {
+  const el = document.getElementById("turnTimer");
+  if (el) {
+    const left = Number(el.dataset.end) - Date.now();
+    const b = el.querySelector("b");
+    if (b) b.textContent = fmtLeft(left);
+    el.classList.toggle("low", left <= 10000);
+  }
+  const room = S.room;
+  if (!room || !isHost()) return;
+  const end = turnEnd(room);
+  if (!end || Date.now() < end + 1000) return;
+  const sk = stageKey(room),
+    i = Object.keys(room.clues?.[sk] || {}).length,
+    who = room.round?.order[i];
+  const key = sk + ":" + i;
+  if (!who || skipKey === key) return;
+  skipKey = key;
+  const last = i === room.round!.order.length - 1;
+  void write(() =>
+    ref().update({ clues: { [sk]: { [i]: { u: who, t: "(tempo esgotado)" } } }, updatedAt: now(), turnAt: now(), ...(last ? { status: "vote" } : {}) }),
+  );
+}
+
 function voteHTML(room: Room): string {
   const r = room.round!,
     vs = room.votes?.[stageKey(room)] || {},
     ids = liveIds(room),
     k = votesPerPlayer(room),
-    my = picksOf(vs[S.me]),
-    inRound = ids.includes(S.me);
-  const done = ids.filter((id) => voteDone(picksOf(vs[id]), k)).length;
+    inRound = ids.includes(S.me),
+    { picks: my, confirmed } = myPicks(room);
+  const voted = ids.filter((id) => voteDone(picksOf(vs[id]), k));
+  const done = voted.length,
+    pct = ids.length ? Math.round((done / ids.length) * 100) : 0;
   const byP = cluesByPlayer(room);
   const title = k > 1 ? `Quem são os ${k} impostores?` : isElim(room) ? "Quem sai agora?" : "Quem é o impostor?";
-  const hint =
-    k > 1
-      ? `Escolha ${k} suspeitos${my.length && !my.includes("none") ? ` · ${my.length} de ${k}` : ""}. `
-      : "";
+  const ready = voteDone(my, k);
+  const locked = !inRound || confirmed;
+  const meter = `<div class="vmeter${done === ids.length ? " full" : ""}" aria-live="polite">
+    <div class="vm-top"><div class="vm-n"><b>${done}</b><span>/${ids.length}</span></div><div class="vm-l">${done === ids.length ? "Todo mundo votou!" : done === 1 ? "pessoa já votou" : "pessoas já votaram"}</div></div>
+    <div class="vm-bar"><i style="width:${pct}%"></i></div>
+    <div class="vm-who">${ids.map((id) => `<span class="${voted.includes(id) ? "ok" : ""}" title="${esc(nickOf(id))}">${voted.includes(id) ? "✓ " : ""}${esc(nickOf(id))}</span>`).join("")}</div>
+  </div>`;
+  let action = "";
+  if (inRound) {
+    if (confirmed)
+      action = `<div class="vconf"><b>✓ Voto confirmado</b><span>${my.includes("none") ? "Você votou em ninguém." : "Você votou em " + my.map((id) => esc(nickOf(id))).join(" e ") + "."}</span><button class="btn btn-ghost btn-sm" type="button" data-act="revote">Trocar voto</button></div>`;
+    else
+      action = `<button class="btn btn-red btn-block vconfirm" type="button" data-act="confirmVote" ${ready ? "" : "disabled"}>${
+        ready ? "Confirmar voto" : k > 1 ? `Escolha ${k} suspeitos (${my.length}/${k})` : "Escolha um suspeito"
+      }</button>`;
+  } else action = `<div class="banner center">Você está só assistindo esta votação.</div>`;
   return `<div class="kicker center">Rodada ${room.rn} · ${isElim(room) ? "etapa " + (r.stage || 1) + " · " : ""}votação</div>
   <h2 class="big center">${title}</h2>
+  ${meter}
   ${cardBarHTML()}
   ${elimHTML(room)}
-  <p class="note center">${hint}${done} de ${ids.length} votaram${my.length ? ". Você pode trocar o voto até todos votarem." : "."}</p>
-  <div class="votes">${ids
+  <div class="votes${locked ? " locked" : ""}">${ids
     .map(
       (id) =>
-        `<button type="button" class="vote" data-act="vote" data-id="${esc(id)}" aria-pressed="${my.includes(id)}" ${!inRound ? "disabled" : ""}>${dot(id)}<span>${esc(nickOf(id))}<br><em>${esc((byP[id] || []).join(" · ") || "sem pista")}</em></span></button>`,
+        `<button type="button" class="vote" data-act="vote" data-id="${esc(id)}" aria-pressed="${my.includes(id)}" ${locked ? "disabled" : ""}>${dot(id)}<span>${esc(nickOf(id))}<br><em>${esc((byP[id] || []).join(" · ") || "sem pista")}</em></span></button>`,
     )
     .join("")}
-  <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my.includes("none")}" ${!inRound ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">${isElim(room) ? "Ninguém sai agora" : "Ninguém é impostor"}</span></button></div>
+  <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my.includes("none")}" ${locked ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">${isElim(room) ? "Ninguém sai agora" : "Ninguém é impostor"}</span></button></div>
+  ${action}
   ${chatHTML(room, true)}
+  ${manageHTML(room)}
   ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}`;
+}
+
+/** Anfitrião: tirar jogadores a qualquer momento (offline, saiu da chamada…). */
+function manageHTML(room: Room): string {
+  if (!isHost()) return "";
+  const ids = activeIds(room).filter((id) => id !== S.me);
+  if (!ids.length) return "";
+  return `<details class="panel manage" id="manage"${S.manageOpen ? " open" : ""}><summary>Gerenciar jogadores <span class="note">(${ids.length + 1} na sala)</span></summary>
+  <p class="note" style="margin:8px 0 10px">Use para tirar quem caiu ou ficou offline. A partida segue sem a pessoa.</p>
+  <div class="players">${ids
+    .map(
+      (id) =>
+        `<div class="pl">${dot(id)}<span class="nm">${esc(nickOf(id))}</span>${
+          S.kickAsk === id
+            ? `<button class="btn btn-red btn-sm" type="button" data-act="kickYes" data-id="${esc(id)}">Confirmar</button><button class="btn btn-ghost btn-sm" type="button" data-act="kickNo">Cancelar</button>`
+            : `<button class="btn btn-ghost btn-sm" type="button" data-act="kickAsk" data-id="${esc(id)}">Remover</button>`
+        }</div>`,
+    )
+    .join("")}</div></details>`;
 }
 
 /** Um voto está completo com k suspeitos ou com "Ninguém". */
@@ -503,6 +613,7 @@ function resultHTML(room: Room): string {
     })
     .join("")}</div></div>
   ${chatMsgs(room).length ? chatHTML(room, false) : ""}
+  ${manageHTML(room)}
   ${isHost() ? `<button class="btn btn-red btn-block" type="button" data-act="again">Nova rodada</button><button class="btn btn-ghost btn-block" type="button" data-act="lobby">Voltar para a sala de espera</button>` : `<div class="banner center">${esc(nickOf(room.host))} começa a próxima rodada.</div>`}
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
 }
@@ -524,6 +635,32 @@ function autoClose(): void {
   const vs = room.votes?.[stageKey(room)] || {},
     k = votesPerPlayer(room);
   if (liveIds(room).every((id) => voteDone(picksOf(vs[id]), k) || !room.players?.[id])) void closeVote();
+}
+
+/** Tira alguém da sala. Durante as pistas, a vez dele é pulada e a ordem segue sem ele. */
+function kickPatch(room: Room, id: string): Patch {
+  const p: Patch = { players: { [id]: null }, updatedAt: now() };
+  const r = room.round;
+  if (!r || (room.status !== "clues" && room.status !== "vote")) return p;
+  const round: Patch = {};
+  if (r.alive) round.alive = r.alive.filter((x) => x !== id);
+  if (room.status === "clues") {
+    const idx = Object.keys(room.clues?.[stageKey(room)] || {}).length;
+    const order = r.order.slice(0, idx).concat(r.order.slice(idx).filter((x) => x !== id));
+    round.order = order;
+    if (order[idx] !== r.order[idx]) p.turnAt = now();
+    if (order.length <= idx) p.status = "vote";
+  }
+  if (room.status === "vote") {
+    // quem tinha votado em quem saiu precisa votar de novo (e o voto de quem saiu deixa de contar)
+    const sk = stageKey(room),
+      vs = room.votes?.[sk] || {},
+      clear: Patch = {};
+    for (const [voter, v] of Object.entries(vs)) if (voter === id || picksOf(v).includes(id)) clear[voter] = null;
+    if (Object.keys(clear).length) p.votes = { [sk]: clear };
+  }
+  if (Object.keys(round).length) p.round = round;
+  return p;
 }
 
 async function act(a: string, b?: HTMLElement): Promise<void> {
@@ -587,7 +724,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         i = Object.keys(room!.clues?.[sk] || {}).length;
       if (r.order[i] !== S.me) return;
       const last = i === r.order.length - 1;
-      if (await upd({ clues: { [sk]: { [i]: { u: S.me, t } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) })) S.draft = "";
+      if (await upd({ clues: { [sk]: { [i]: { u: S.me, t } } }, updatedAt: now(), turnAt: now(), ...(last ? { status: "vote" } : {}) })) S.draft = "";
       break;
     }
     case "chat": {
@@ -610,27 +747,65 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         sk = stageKey(room!),
         i = Object.keys(room!.clues?.[sk] || {}).length;
       const last = i === r.order.length - 1;
-      await upd({ clues: { [sk]: { [i]: { u: r.order[i], t: "(pulou a vez)" } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) });
+      await upd({ clues: { [sk]: { [i]: { u: r.order[i], t: "(pulou a vez)" } } }, updatedAt: now(), turnAt: now(), ...(last ? { status: "vote" } : {}) });
       break;
     }
     case "tovote":
       await upd({ status: "vote", updatedAt: now() });
       break;
     case "vote": {
+      // só marca no aparelho; o voto vale quando a pessoa toca em Confirmar voto
       const id = b!.dataset.id!,
-        k = votesPerPlayer(room!),
-        sk = stageKey(room!);
+        k = votesPerPlayer(room!);
       if (!liveIds(room!).includes(S.me)) return;
-      let picks = picksOf(room!.votes?.[sk]?.[S.me]).filter((x) => x !== "none");
-      if (id === "none" || k === 1) picks = [id];
+      const cur = myPicks(room!);
+      if (cur.confirmed) return;
+      let picks = cur.picks.filter((x) => x !== "none");
+      if (id === "none") picks = cur.picks.includes("none") ? [] : ["none"];
       else if (picks.includes(id)) picks = picks.filter((x) => x !== id);
+      else if (k === 1) picks = [id];
       else if (picks.length >= k) {
-        roomErr(`Você já escolheu ${k} suspeitos. Toque num deles para trocar.`);
+        roomErr(`Você já escolheu ${k} suspeitos. Toque num deles para desmarcar.`);
         return;
       } else picks.push(id);
-      await upd({ votes: { [sk]: { [S.me]: picks.join(",") } }, updatedAt: now() });
+      S.voteDraft = { k: stageKey(room!), picks };
+      render();
       break;
     }
+    case "confirmVote": {
+      const k = votesPerPlayer(room!),
+        sk = stageKey(room!),
+        picks = myPicks(room!).picks;
+      if (!liveIds(room!).includes(S.me) || !voteDone(picks, k)) return;
+      if (await upd({ votes: { [sk]: { [S.me]: picks.join(",") } }, updatedAt: now() })) S.voteEdit = false;
+      render();
+      break;
+    }
+    case "revote": {
+      const sk = stageKey(room!);
+      S.voteDraft = { k: sk, picks: picksOf(room!.votes?.[sk]?.[S.me]) };
+      S.voteEdit = true;
+      render();
+      break;
+    }
+    case "kickAsk":
+      S.kickAsk = b!.dataset.id!;
+      render();
+      break;
+    case "kickNo":
+      S.kickAsk = null;
+      render();
+      break;
+    case "kickYes": {
+      const id = b!.dataset.id!;
+      S.kickAsk = null;
+      if (!isHost() || id === S.me) return;
+      await upd(kickPatch(room!, id));
+      break;
+    }
+    case "clueTime":
+      await upd({ settings: { clueTime: Number(b!.dataset.k) }, updatedAt: now() });
+      break;
     case "vmode":
       await upd({ settings: { voteMode: b!.dataset.k! }, updatedAt: now() });
       break;
@@ -665,6 +840,14 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
 
 /* ---------- eventos ---------- */
 function wire(): void {
+  setInterval(tick, 1000);
+  document.addEventListener(
+    "toggle",
+    (e) => {
+      if ((e.target as HTMLElement).id === "manage") S.manageOpen = (e.target as HTMLDetailsElement).open;
+    },
+    true,
+  );
   $("rooms").addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>(".roomrow");
     if (b) {
