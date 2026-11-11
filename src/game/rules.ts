@@ -103,6 +103,8 @@ export function newRoundPatch(room: Room): Patch {
     rn: (room.rn || 0) + 1,
     updatedAt: now(),
     used: used.concat(cat + ":" + it[0]).slice(-150),
+    // apaga o chat da rodada anterior para a sala não crescer
+    ...(room.rn ? { chat: { ["r" + room.rn]: null } } : {}),
     round: {
       cat,
       secret: enc(word),

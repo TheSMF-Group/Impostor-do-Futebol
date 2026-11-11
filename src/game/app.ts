@@ -6,7 +6,7 @@ import { cue } from "./moments";
 import { isMuted, setMuted, unlockOnGesture } from "./sfx";
 import { activeIds, catsOf, genCode, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, roundKey, tallyVotes } from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
-import type { Patch, Room } from "./types";
+import type { ChatMsg, Patch, Room } from "./types";
 import { $, dec, esc, ls, now } from "./util";
 
 const screen = (): "home" | "room" => (S.code ? "room" : "home");
@@ -276,6 +276,56 @@ function render(): void {
     gi.value = S.guessDraft;
     if (focused === "guessIn") gi.focus();
   }
+  const chi = document.getElementById("chatIn") as HTMLInputElement | null;
+  if (chi) {
+    chi.value = S.chatDraft;
+    if (focused === "chatIn") chi.focus();
+  }
+  // a conversa abre já na mensagem mais nova, a menos que a pessoa tenha subido para ler
+  const cl = document.getElementById("chatList");
+  if (cl) {
+    if (chatStick) cl.scrollTop = cl.scrollHeight;
+    else cl.scrollTop = chatScroll;
+    cl.addEventListener("scroll", () => {
+      chatScroll = cl.scrollTop;
+      chatStick = cl.scrollHeight - cl.scrollTop - cl.clientHeight < 40;
+    });
+  }
+}
+
+/* ---------- chat da votação ---------- */
+const CHAT_MAX_LEN = 140;
+const CHAT_MAX_PER_PLAYER = 30;
+let chatStick = true;
+let chatScroll = 0;
+
+function chatMsgs(room: Room): [string, ChatMsg][] {
+  return Object.entries(room.chat?.[roundKey(room)] || {})
+    .filter((e): e is [string, ChatMsg] => !!e[1] && typeof e[1].t === "string")
+    .sort((a, b) => a[1].at - b[1].at);
+}
+
+function chatHTML(room: Room, open: boolean): string {
+  const list = chatMsgs(room);
+  const canSend = open && !!room.round?.players.includes(S.me);
+  const mine = list.filter(([, m]) => m.u === S.me).length;
+  const rows = list.length
+    ? list
+        .map(([, m]) => {
+          const me = m.u === S.me;
+          return `<div class="msg${me ? " me" : ""}">${me ? "" : dot(m.u)}<div class="bub"><b style="color:${colorOf(m.u)}">${esc(me ? "Você" : nickOf(m.u))}</b><span>${esc(m.t)}</span></div></div>`;
+        })
+        .join("")
+    : `<p class="note center" style="margin:8px 0">${open ? "Ninguém falou nada ainda. Explique sua pista ou acuse alguém." : "Ninguém conversou nesta votação."}</p>`;
+  return `<div class="panel chat"><h3>${open ? "Conversa" : "Conversa da votação"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
+    canSend
+      ? mine >= CHAT_MAX_PER_PLAYER
+        ? `<p class="note" style="margin-top:8px">Você chegou ao limite de ${CHAT_MAX_PER_PLAYER} mensagens nesta rodada.</p>`
+        : `<div class="myturn" style="margin-top:10px"><input class="field" id="chatIn" maxlength="${CHAT_MAX_LEN}" placeholder="Explique sua pista…" autocomplete="off" aria-label="Mensagem para a sala"><button class="btn btn-red" type="button" data-act="chat">Enviar</button></div>`
+      : open
+        ? `<p class="note" style="margin-top:8px">Só quem está jogando esta rodada pode escrever.</p>`
+        : ""
+  }</div>`;
 }
 
 function lobbyHTML(room: Room): string {
@@ -363,6 +413,7 @@ function voteHTML(room: Room): string {
     )
     .join("")}
   <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my === "none"}" ${!inRound ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">Ninguém é impostor</span></button></div>
+  ${chatHTML(room, true)}
   ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}`;
 }
 
@@ -384,6 +435,7 @@ function resultHTML(room: Room): string {
       return `<div class="${bad ? "bad" : ""}"><span>${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${v} voto${v === 1 ? "" : "s"}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></div>`;
     })
     .join("")}</div></div>
+  ${chatMsgs(room).length ? chatHTML(room, false) : ""}
   ${isHost() ? `<button class="btn btn-red btn-block" type="button" data-act="again">Nova rodada</button><button class="btn btn-ghost btn-block" type="button" data-act="lobby">Voltar para a sala de espera</button>` : `<div class="banner center">${esc(nickOf(room.host))} começa a próxima rodada.</div>`}
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
 }
@@ -468,6 +520,21 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       if (await upd({ clues: { [rk()]: { [i]: { u: S.me, t } } }, updatedAt: now(), ...(last ? { status: "vote" } : {}) })) S.draft = "";
       break;
     }
+    case "chat": {
+      const t = S.chatDraft.trim().replace(/\s+/g, " ").slice(0, CHAT_MAX_LEN);
+      if (!t) {
+        roomErr("Escreva uma mensagem antes de enviar.");
+        return;
+      }
+      if (room!.status !== "vote" || !room!.round?.players.includes(S.me)) return;
+      if (chatMsgs(room!).filter(([, m]) => m.u === S.me).length >= CHAT_MAX_PER_PLAYER) return;
+      const id = S.me + "-" + Date.now().toString(36);
+      S.chatDraft = "";
+      chatStick = true;
+      if (!(await upd({ chat: { [rk()]: { [id]: { u: S.me, t, at: now() } } }, updatedAt: now() }))) S.chatDraft = t;
+      render();
+      break;
+    }
     case "skip": {
       const r = room!.round!,
         i = Object.keys(room!.clues?.[rk()] || {}).length;
@@ -528,12 +595,14 @@ function wire(): void {
     const t = e.target as HTMLInputElement;
     if (t.id === "clueIn") S.draft = t.value;
     if (t.id === "guessIn") S.guessDraft = t.value;
+    if (t.id === "chatIn") S.chatDraft = t.value;
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
+    if (e.key !== "Enter" || e.isComposing) return;
     const id = (e.target as HTMLElement).id;
     if (id === "clueIn") void act("clue");
     if (id === "guessIn") void act("guess");
+    if (id === "chatIn") void act("chat");
   });
   const view = $("roomView");
   view.addEventListener("click", (e) => {

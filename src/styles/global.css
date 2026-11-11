@@ -135,6 +135,13 @@ footer{border-top:1px solid var(--line);padding-block:24px;color:var(--muted);fo
 .clue.wait .tx{color:var(--muted);font-weight:500;font-size:14px}
 .myturn{display:grid;grid-template-columns:1fr auto;gap:8px}
 .votes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chat-list{display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.msg{display:flex;align-items:flex-end;gap:8px;min-width:0;max-width:88%}
+.msg.me{align-self:flex-end;flex-direction:row-reverse}
+.msg .bub{background:var(--soft);border-radius:12px 12px 12px 4px;padding:8px 11px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.msg.me .bub{background:rgba(229,27,27,.16);border-radius:12px 12px 4px 12px}
+.msg .bub b{font-size:12px;font-weight:800}
+.msg .bub span{font-size:15px;line-height:1.35;overflow-wrap:anywhere;white-space:pre-wrap}
 .vote{border:1.5px solid var(--line);background:var(--card);color:var(--fg);border-radius:12px;padding:12px;font-weight:700;text-align:left;display:flex;align-items:center;gap:10px;min-width:0}
 .vote .dot{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#fff;font-weight:900}
 .vote span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}

@@ -14,6 +14,7 @@ export const S = {
   revRn: null as number | null,
   draft: "",
   guessDraft: "",
+  chatDraft: "",
   readOnly: false,
   closing: false,
 };

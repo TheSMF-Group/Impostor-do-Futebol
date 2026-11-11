@@ -75,6 +75,12 @@ function next(): void {
 /** Compara o estado anterior com o novo e enfileira os avisos. Não repete nada ao entrar ou recarregar. */
 export function cue(p: Room | null, r: Room, me: string): void {
   if (!p || p.code !== r.code) return;
+  // mensagem nova de outra pessoa no chat da votação: só um toque curto
+  if (r.status === "vote" && p.rn === r.rn) {
+    const k = roundKey(r);
+    const old = p.chat?.[k] || {};
+    if (Object.entries(r.chat?.[k] || {}).some(([id, m]) => m && !old[id] && m.u !== me)) sfx("msg");
+  }
   const nk = (id: string) => esc(r.players?.[id]?.nick || "Alguém");
   const st: Moment[] = [];
   if (r.status === "clues" && r.round && (p.status !== "clues" || p.rn !== r.rn)) {

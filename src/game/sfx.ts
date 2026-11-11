@@ -13,7 +13,8 @@ export type Sfx =
   | "impostor" // impostor pego / impostor venceu: acorde sombrio
   | "innocent" // tiraram alguém do elenco
   | "win" // vitória do elenco
-  | "flip"; // carta virando
+  | "flip" // carta virando
+  | "msg"; // mensagem nova no chat
 
 const KEY = "idf-mute";
 let ctx: AudioContext | null = null;
@@ -169,6 +170,10 @@ const SOUNDS: Record<Sfx, (t: number) => void> = {
   win: (t) => {
     [523, 659, 784, 1047].forEach((f, i) => tone("square", f, t + i * 0.11, i === 3 ? 0.7 : 0.16, 0.1));
     noise(t + 0.3, 1.4, 0.08, "bandpass", 1200, 800, 0.6); // torcida
+  },
+  msg: (t) => {
+    tone("sine", 880, t, 0.08, 0.12);
+    tone("sine", 1320, t + 0.06, 0.12, 0.1);
   },
   flip: (t) => {
     noise(t, 0.35, 0.25, "bandpass", 600, 4000, 1.2);

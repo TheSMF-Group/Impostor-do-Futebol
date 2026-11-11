@@ -47,6 +47,13 @@ export interface Clue {
   t: string;
 }
 
+/** Mensagem do chat da votação. */
+export interface ChatMsg {
+  u: string;
+  t: string;
+  at: number;
+}
+
 export interface VoteResult {
   out: string | null;
   tally: Record<string, number>;
@@ -73,6 +80,8 @@ export interface Room {
   votes: Record<string, Record<string, string>>;
   result: Record<string, VoteResult>;
   guess: Record<string, Guess>;
+  /** chat da votação, por rodada ("r3") e id da mensagem; null = apagado */
+  chat?: Record<string, Record<string, ChatMsg | null> | null>;
   used: string[];
   /** versão do estado nas salas MQTT */
   _v?: number;
