@@ -202,6 +202,18 @@ footer{border-top:1px solid var(--line);padding-block:24px;color:var(--muted);fo
 .roles div em{font-style:normal;font-weight:500;color:var(--muted);text-align:right;flex:none}
 .roles div.bad{background:rgba(255,42,42,.1)}
 .roles div.bad em{color:var(--red)}
+.roles .role{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:var(--soft);font-weight:700;min-width:0;border:1.5px solid transparent;color:var(--fg);text-align:left;width:100%}
+.roles .role:hover{border-color:var(--line)}
+.roles .role[aria-expanded="true"]{border-color:var(--accent)}
+.roles .role>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.roles .role em{font-style:normal;font-weight:500;color:var(--muted);text-align:right;flex:none}
+.roles .role.bad{background:rgba(255,42,42,.1)}
+.roles .role.bad em{color:var(--red)}
+.roles .chev{color:var(--muted);font-size:12px}
+.rclues{margin:-2px 0 4px;padding:10px 12px;border-radius:0 0 10px 10px;background:var(--card);border:1px dashed var(--line);display:grid;gap:6px}
+.rc-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.rc-row small{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.rc-row b{background:var(--soft);border-radius:8px;padding:5px 10px;font-size:15px;font-weight:800}
 .banner{border:1.5px solid var(--line);border-radius:12px;padding:14px;background:var(--card);font-size:14px}
 .banner b{display:block;margin-bottom:4px}
 dialog{border:0;border-radius:16px;padding:0;max-width:560px;width:calc(100% - 32px);background:var(--card);color:var(--fg)}

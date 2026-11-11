@@ -665,6 +665,23 @@ function manageHTML(room: Room): string {
 /** Um voto está completo com k suspeitos ou com "Ninguém". */
 const voteDone = (picks: string[], k: number): boolean => picks.includes("none") || picks.length >= k;
 
+/** Dicas que um jogador deu na rodada (por etapa, na eliminação). */
+function playerCluesHTML(room: Room, id: string): string {
+  const last = room.round?.stage || 1;
+  const parts: string[] = [];
+  for (let st = 1; st <= last; st++) {
+    const k = roundKey(room) + (st > 1 ? "s" + st : "");
+    const mine = Object.entries(room.clues?.[k] || {})
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .filter(([, c]) => c.u === id)
+      .map(([, c]) => c.t);
+    if (!mine.length) continue;
+    const label = last > 1 ? `<small>Etapa ${st}</small>` : `<small>Dicas</small>`;
+    parts.push(`<span class="rc-row">${label}${mine.map((t) => `<b>${esc(t)}</b>`).join("")}</span>`);
+  }
+  return `<p class="rclues">${parts.length ? parts.join("") : `<span class="note">Não deu nenhuma dica nesta rodada.</span>`}</p>`;
+}
+
 function resultHTML(room: Room): string {
   const r = room.round!,
     res = room.result?.[rk()],
@@ -681,13 +698,14 @@ function resultHTML(room: Room): string {
   <div class="result ${o.win ? "win" : "lose"}">${o.win ? "" : `<div style="font-family:var(--pixel);color:var(--red);font-size:52px;line-height:.9;text-shadow:3px 3px 0 var(--red-deep)">Impostor</div>`}<h2>${o.title}</h2><p>${o.sub}</p>${r.chaos && r.imps.length && r.imps.length < r.players.length ? `<p>${esc(r.chaos)}</p>` : ""}<p style="margin-top:14px;font-size:13px;opacity:.75">Carta secreta · ${esc(themeName(r.cat))}</p>${o.pending ? `<div class="sw-word">Revelada depois do chute</div>` : secretHTML(r.cat, r.sid ? dec(r.sid) : null, word)}</div>
   ${canGuess && waitFor.length ? `<div class="banner center">Esperando também o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}.</div>` : ""}
   ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div></div>` : o.pending && waitFor.length ? `<div class="banner center">Esperando o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}…</div>` : ""}
-  <div class="panel"><h3>Quem era quem</h3><div class="roles">${r.players
+  <div class="panel"><h3>Quem era quem</h3><p class="note" style="margin:-4px 0 10px">Toque num nome para ver as dicas que a pessoa deu.</p><div class="roles">${r.players
     .map((id) => {
       const bad = r.imps.includes(id);
       const v = tally[id] || 0;
       const info = isElim(room) ? (outAt[id] ? "saiu na etapa " + outAt[id] : "ficou até o fim") : v + " voto" + (v === 1 ? "" : "s");
       const gs = G[id] ? ` · chutou “${esc(G[id].t)}” ${G[id].ok ? "✓" : "✗"}` : "";
-      return `<div class="${bad ? "bad" : ""}"><span>${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${info}${gs}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></div>`;
+      const open = S.openClues.includes(id);
+      return `<button type="button" class="role${bad ? " bad" : ""}" data-act="clues" data-id="${esc(id)}" aria-expanded="${open}"><span><span class="chev">${open ? "▾" : "▸"}</span> ${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${info}${gs}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></button>${open ? playerCluesHTML(room, id) : ""}`;
     })
     .join("")}</div></div>
   ${scoreboardHTML(room)}
@@ -796,11 +814,18 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
     }
     case "start":
     case "again": {
+      S.openClues = [];
       S.draft = "";
       S.guessDraft = "";
       // rodada que acabou sem o chute: conta como chute errado antes de começar outra
       const sc = room!.status === "result" ? scorePatch(room!, true) : null;
       await upd({ ...newRoundPatch(room!), ...(sc || {}) });
+      break;
+    }
+    case "clues": {
+      const id = b!.dataset.id!;
+      S.openClues = S.openClues.includes(id) ? S.openClues.filter((x) => x !== id) : S.openClues.concat(id);
+      render();
       break;
     }
     case "endAsk":
