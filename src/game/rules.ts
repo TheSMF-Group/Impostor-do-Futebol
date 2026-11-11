@@ -1,6 +1,6 @@
 // Regras puras da partida (sem DOM): sorteio da rodada, votos, resultado e chute.
 import { THEME_ORDER, THEMES, isPlayerTheme } from "./data";
-import type { Card, Guess, Out, Patch, Room, VoteResult } from "./types";
+import type { Card, Guess, Out, Patch, RankRow, Room, VoteResult } from "./types";
 import { enc, esc, norm, now, pick, shuffle } from "./util";
 
 export const activeIds = (r: Pick<Room, "players">): string[] =>
@@ -327,4 +327,69 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
     title: winners.length > 1 ? "Os impostores venceram" : right.length ? "Roubou a vitória!" : "O impostor venceu",
     sub: (right.length ? list(right) + (right.length > 1 ? " acertaram" : " acertou") + " a carta secreta. " : "") + sub,
   };
+}
+
+/* ---------- placar ---------- */
+export const PTS_IMP = 3;
+export const PTS_CREW = 1;
+
+/**
+ * Pontos da rodada: impostor que venceu (acertou o chute ou escapou) ganha 3;
+ * quando o elenco vence, cada jogador do elenco ganha 1.
+ * Devolve null enquanto falta chute, a menos que force (rodada encerrada antes do chute: conta como erro).
+ */
+export function roundPoints(room: Room, force = false): Record<string, number> | null {
+  const r = room.round;
+  if (!r || room.status !== "result") return null;
+  const o = outcome(room, (id) => id);
+  if (o.pending && !force) return null;
+  const pts: Record<string, number> = {};
+  const imps = r.imps,
+    crew = r.players.filter((id) => !imps.includes(id));
+  if (imps.length === 0) {
+    if (room.result?.[roundKey(room)]?.out === "none") for (const id of crew) pts[id] = PTS_CREW;
+    return pts;
+  }
+  if (imps.length === r.players.length) return pts;
+  const G = guessesOf(room),
+    caught = caughtImps(room);
+  const winImps = imps.filter((id) => (caught.includes(id) ? !!G[id]?.ok : !!room.players?.[id]));
+  if (winImps.length) for (const id of winImps) pts[id] = PTS_IMP;
+  else if (o.win) for (const id of crew) pts[id] = PTS_CREW;
+  return pts;
+}
+
+/** Soma os pontos da rodada no placar (o anfitrião grava uma vez por rodada). */
+export function scorePatch(room: Room, force = false): Patch | null {
+  const k = roundKey(room);
+  if (room.scored?.[k]) return null;
+  const pts = roundPoints(room, force);
+  if (!pts) return null;
+  const scores: Patch = {};
+  for (const [id, p] of Object.entries(pts)) {
+    const cur = room.scores?.[id];
+    scores[id] = { n: room.players?.[id]?.nick || cur?.n || "Jogador", p: (cur?.p || 0) + p };
+  }
+  // jogadores da rodada sem ponto entram no placar com 0, para aparecer no ranking
+  for (const id of room.round?.players || [])
+    if (!room.scores?.[id] && !scores[id]) scores[id] = { n: room.players?.[id]?.nick || "Jogador", p: 0 };
+  return { scores, scored: { [k]: Object.keys(pts).length ? pts : { _: 0 } }, updatedAt: now() };
+}
+
+/** Ranking da sala, do maior para o menor. Empate: mesma posição. */
+export function ranking(room: Room): (RankRow & { pos: number })[] {
+  const rows: RankRow[] = Object.entries(room.scores || {})
+    .filter((e): e is [string, { n: string; p: number }] => !!e[1])
+    .map(([u, s]) => ({ u, n: room.players?.[u]?.nick || s.n, p: s.p }));
+  for (const u of activeIds(room)) if (!rows.some((x) => x.u === u)) rows.push({ u, n: room.players![u]!.nick, p: 0 });
+  rows.sort((a, b) => b.p - a.p || a.n.localeCompare(b.n));
+  let pos = 0,
+    last = -1;
+  return rows.map((x, i) => {
+    if (x.p !== last) {
+      pos = i + 1;
+      last = x.p;
+    }
+    return { ...x, pos };
+  });
 }

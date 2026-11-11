@@ -145,4 +145,17 @@ export function cue(p: Room | null, r: Room, me: string): void {
     }
   }
   if (st.length) play(st);
+  // pódio: os sons acompanham a animação (3º em 1s, 2º em 3s, 1º em 5s, ranking depois)
+  if (r.status === "podium" && p.status !== "podium") {
+    stop();
+    sfx("roll", 0);
+    sfx("hit", 1.0);
+    sfx("roll", 1.9);
+    sfx("hit", 3.0);
+    sfx("roll", 3.6);
+    sfx("impostor", 5.0);
+    sfx("win", 5.3);
+    const n = r.final?.list.length || 0;
+    for (let i = 0; i < n; i++) sfx("msg", 7.4 + i * 0.35);
+  }
 }

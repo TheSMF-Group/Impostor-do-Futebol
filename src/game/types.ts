@@ -90,7 +90,19 @@ export interface Guess {
   ok: boolean;
 }
 
-export type RoomStatus = "lobby" | "clues" | "vote" | "result" | "closed";
+export type RoomStatus = "lobby" | "clues" | "vote" | "result" | "podium" | "closed";
+
+/** Pontos de um jogador na sala (o apelido fica guardado para quem sair). */
+export interface Score {
+  n: string;
+  p: number;
+}
+
+export interface RankRow {
+  u: string;
+  n: string;
+  p: number;
+}
 
 export interface Room {
   code: string;
@@ -111,6 +123,12 @@ export interface Room {
   chat?: Record<string, Record<string, ChatMsg | null> | null>;
   /** quando começou a vez atual de dar pista (relógio de quem gravou) */
   turnAt?: number;
+  /** placar acumulado da sala até encerrar */
+  scores?: Record<string, Score> | null;
+  /** pontos dados em cada rodada ("r3" → jogador → pontos); marca que a rodada já foi contada */
+  scored?: Record<string, Record<string, number>> | null;
+  /** sala encerrada: ranking final para o pódio */
+  final?: { at: number; list: RankRow[] } | null;
   used: string[];
   /** versão do estado nas salas MQTT */
   _v?: number;

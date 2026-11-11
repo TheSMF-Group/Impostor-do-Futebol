@@ -291,3 +291,43 @@ dialog::backdrop{background:rgba(0,0,0,.75)}
   .hero .logo.art{order:-1;min-height:0;aspect-ratio:4/3;max-height:340px}
   .steps{grid-template-columns:1fr 1fr}
 }
+
+/* placar da sala */
+.board .brows{display:grid;gap:6px}
+.brow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--soft);min-width:0}
+.brow.me{outline:1.5px solid var(--accent)}
+.bpos{flex:none;width:30px;font-family:var(--display);font-weight:900;font-size:16px;color:var(--muted)}
+.brow:nth-child(1) .bpos{color:#F5C542}.brow:nth-child(2) .bpos{color:#C8CCD4}.brow:nth-child(3) .bpos{color:#CD7F32}
+.bnm{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bplus{flex:none;font-weight:900;font-size:13px;color:#4cd187}
+.bpt{flex:none;font-family:var(--display);font-weight:900;font-variant-numeric:tabular-nums}
+
+/* pódio */
+.podium{display:flex;flex-direction:column;gap:18px;position:relative;overflow:hidden;padding-top:6px}
+.podium [style*="--d"]{animation:pd-in .6s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:var(--d)}
+@keyframes pd-in{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:none}}
+.pd-title{text-align:center;display:flex;flex-direction:column;gap:2px}
+.pd-title .px{font-family:var(--pixel);color:var(--red);font-size:64px;line-height:.9;text-shadow:4px 4px 0 var(--red-deep)}
+.pd-title small{color:var(--muted);font-size:13px}
+.pstage{display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:8px;min-height:300px}
+.pcol{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+.pcol.empty{visibility:hidden}
+.pwho{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;max-width:100%}
+.pav{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:22px;color:#fff;border:3px solid #fff}
+.p1 .pav{width:66px;height:66px;font-size:28px;border-color:#F5C542;box-shadow:0 0 0 6px rgba(245,197,66,.25)}
+.pwho b{font-size:15px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ppts{font-size:12px;font-weight:800;color:var(--muted)}
+.pblock{width:100%;border-radius:12px 12px 0 0;display:flex;justify-content:center;padding-top:12px;font-family:var(--display);font-weight:900;color:#0A0808;transform-origin:bottom;animation:pd-up .9s cubic-bezier(.2,.9,.3,1.15) both;animation-delay:calc(var(--d) + .15s)}
+.pblock span{font-size:34px}
+.p1 .pblock{height:170px;background:linear-gradient(#F5C542,#C99A1B)}
+.p2 .pblock{height:120px;background:linear-gradient(#E3E6EC,#9EA3AD)}
+.p3 .pblock{height:85px;background:linear-gradient(#E0A46A,#A9662C)}
+@keyframes pd-up{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.p1 .pwho{animation:pd-in .7s cubic-bezier(.2,.9,.3,1.3) both,pd-glow 1.6s ease-in-out infinite;animation-delay:var(--d),calc(var(--d) + .8s)}
+@keyframes pd-glow{0%,100%{filter:drop-shadow(0 0 0 rgba(245,197,66,0))}50%{filter:drop-shadow(0 0 14px rgba(245,197,66,.7))}}
+.pconf{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.pconf i{position:absolute;top:-20px;width:8px;height:14px;border-radius:2px;opacity:0;animation-name:pd-fall;animation-timing-function:linear;animation-fill-mode:forwards}
+@keyframes pd-fall{0%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:0;transform:translateY(620px) rotate(540deg)}}
+.pfull .brow.pr{animation:pd-in .45s ease both;animation-delay:var(--d)}
+.pact{display:grid;gap:8px}
+@media (prefers-reduced-motion:reduce){.podium *{animation-delay:0s!important;animation-duration:.01s!important}}

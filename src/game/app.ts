@@ -19,7 +19,9 @@ import {
   newRoundPatch,
   outcome,
   picksOf,
+  ranking,
   roundKey,
+  scorePatch,
   stageKey,
   tallyVotes,
   votesPerPlayer,
@@ -247,6 +249,7 @@ function enterRoom(c: string, silent = false): void {
       if (S.revRn !== null && (r.rn !== S.revRn || r.status === "lobby")) closeReveal();
       render();
       autoClose();
+      autoScore();
       cue(prev, r, S.me);
     },
     () => {
@@ -282,6 +285,15 @@ function render(): void {
     return;
   }
   const focused = (document.activeElement as HTMLElement | null)?.id;
+  if (room.status === "podium") {
+    // o pódio é uma animação: só desenha de novo se mudar o ranking ou quem é anfitrião
+    const key = (room.final?.at || 0) + ":" + room.host;
+    if (podiumKey === key) return;
+    podiumKey = key;
+    v.innerHTML = podiumHTML(room) + `<p class="err center" id="roomErr" hidden></p>`;
+    return;
+  }
+  podiumKey = "";
   const html =
     room.status === "lobby" ? lobbyHTML(room) : room.status === "clues" ? cluesHTML(room) : room.status === "vote" ? voteHTML(room) : room.status === "result" ? resultHTML(room) : "";
   v.innerHTML = html + `<p class="err center" id="roomErr" hidden></p>`;
@@ -399,7 +411,9 @@ function lobbyHTML(room: Room): string {
       )
       .join("")}</div></div>
   </div>
+  ${scoreboardHTML(room)}
   ${h ? `<button class="btn btn-red btn-block" type="button" data-act="start" ${n < 3 || !cats.length ? "disabled" : ""}>${n < 3 ? "Esperando jogadores…" : !cats.length ? "Escolha um tema" : "Começar partida"}</button>` : `<div class="banner center">Esperando ${esc(nickOf(room.host))} começar a partida.</div>`}
+  ${h && Object.keys(room.scores || {}).length ? endRoomHTML() : ""}
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
 }
 
@@ -464,6 +478,70 @@ function myPicks(room: Room): { picks: string[]; confirmed: boolean } {
   const live = liveIds(room);
   S.voteDraft.picks = S.voteDraft.picks.filter((x) => x === "none" || live.includes(x));
   return { picks: S.voteDraft.picks, confirmed: false };
+}
+
+/* ---------- placar e pódio ---------- */
+let podiumKey = "";
+
+function endRoomHTML(): string {
+  return S.endAsk
+    ? `<div class="banner center"><b>Encerrar a sala e ver o pódio?</b>O placar fecha e ninguém joga mais nesta sala.<div style="display:flex;gap:8px;justify-content:center;margin-top:10px"><button class="btn btn-red btn-sm" type="button" data-act="endYes">Encerrar e ver pódio</button><button class="btn btn-ghost btn-sm" type="button" data-act="endNo">Cancelar</button></div></div>`
+    : `<button class="btn btn-ghost btn-block" type="button" data-act="endAsk">🏆 Encerrar sala e ver pódio</button>`;
+}
+
+function scoreboardHTML(room: Room): string {
+  const rows = ranking(room);
+  if (!rows.length || !Object.keys(room.scores || {}).length) return "";
+  const last = room.scored?.[roundKey(room)] || {};
+  return `<div class="panel board"><h3>Placar da sala</h3><p class="note" style="margin:-4px 0 10px">Impostor que vence: +3 · Elenco que vence: +1 cada</p><div class="brows">${rows
+    .map(
+      (x) =>
+        `<div class="brow${x.u === S.me ? " me" : ""}"><span class="bpos">${x.pos}º</span><span class="bnm">${esc(x.n)}${room.players?.[x.u] ? "" : ' <span class="note">(saiu)</span>'}</span>${
+          room.status === "result" && last[x.u] ? `<span class="bplus">+${last[x.u]}</span>` : ""
+        }<span class="bpt">${x.p} pt${x.p === 1 ? "" : "s"}</span></div>`,
+    )
+    .join("")}</div></div>`;
+}
+
+/** Pódio: 3º, 2º e 1º sobem um de cada vez; depois o ranking completo aparece do último para o primeiro. */
+function podiumHTML(room: Room): string {
+  const list = room.final?.list || [];
+  const withPos: (typeof list[number] & { pos: number })[] = [];
+  let pos = 0,
+    lastP = -1;
+  list.forEach((x, i) => {
+    if (x.p !== lastP) {
+      pos = i + 1;
+      lastP = x.p;
+    }
+    withPos.push({ ...x, pos });
+  });
+  const slot = (i: number, cls: string, delay: number) => {
+    const x = withPos[i];
+    if (!x) return `<div class="pcol ${cls} empty"></div>`;
+    return `<div class="pcol ${cls}" style="--d:${delay}s"><div class="pwho"><span class="pav" style="background:${colorOf(x.u)}">${esc(x.n[0]?.toUpperCase() || "?")}</span><b>${esc(x.n)}</b><span class="ppts">${x.p} pt${x.p === 1 ? "" : "s"}</span></div><div class="pblock"><span>${x.pos}º</span></div></div>`;
+  };
+  const base = 7.4;
+  const rows = withPos
+    .map((x, i) => ({ x, i }))
+    .reverse()
+    .map(({ x }, k) => ({ x, d: base + k * 0.35 }));
+  const sorted = rows.slice().sort((a, b) => a.x.pos - b.x.pos || b.x.p - a.x.p);
+  const h = isHost();
+  return `<div class="podium">
+    <div class="pd-title" style="--d:0s"><span class="px">Fim de jogo</span><small>Sala ${esc(S.code)} · ${list.length} jogadores</small></div>
+    <div class="pstage">${slot(1, "p2", 3.0)}${slot(0, "p1", 5.0)}${slot(2, "p3", 1.0)}</div>
+    <div class="pconf" style="--d:5.4s">${Array.from({ length: 36 }, (_, i) => `<i style="left:${(i * 2.8 + Math.random() * 2).toFixed(1)}%;animation-delay:${(5.4 + Math.random() * 0.8).toFixed(2)}s;animation-duration:${(2 + Math.random() * 1.4).toFixed(2)}s;background:${["#F5C542", "#fff", "#FF2A2A", "#C8CCD4"][i % 4]}"></i>`).join("")}</div>
+    <div class="panel board pfull" style="--d:${base - 0.4}s"><h3>Ranking da sala</h3><div class="brows">${sorted
+      .map(
+        ({ x, d }) =>
+          `<div class="brow pr${x.u === S.me ? " me" : ""}" style="--d:${d.toFixed(2)}s"><span class="bpos">${x.pos}º</span><span class="bnm">${esc(x.n)}</span><span class="bpt">${x.p} pt${x.p === 1 ? "" : "s"}</span></div>`,
+      )
+      .join("")}</div></div>
+    <div class="pact" style="--d:${(base + rows.length * 0.35 + 0.2).toFixed(2)}s">${
+      h ? `<button class="btn btn-red btn-block" type="button" data-act="replay">Jogar de novo (placar zerado)</button>` : ""
+    }<button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button></div>
+  </div>`;
 }
 
 /* ---------- tempo para dar dica ---------- */
@@ -612,9 +690,10 @@ function resultHTML(room: Room): string {
       return `<div class="${bad ? "bad" : ""}"><span>${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${info}${gs}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></div>`;
     })
     .join("")}</div></div>
+  ${scoreboardHTML(room)}
   ${chatMsgs(room).length ? chatHTML(room, false) : ""}
   ${manageHTML(room)}
-  ${isHost() ? `<button class="btn btn-red btn-block" type="button" data-act="again">Nova rodada</button><button class="btn btn-ghost btn-block" type="button" data-act="lobby">Voltar para a sala de espera</button>` : `<div class="banner center">${esc(nickOf(room.host))} começa a próxima rodada.</div>`}
+  ${isHost() ? `<button class="btn btn-red btn-block" type="button" data-act="again">Nova rodada</button><button class="btn btn-ghost btn-block" type="button" data-act="lobby">Voltar para a sala de espera</button>${endRoomHTML()}` : `<div class="banner center">${esc(nickOf(room.host))} começa a próxima rodada ou encerra a sala.</div>`}
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
 }
 
@@ -627,6 +706,20 @@ async function closeVote(): Promise<void> {
   await write(() => ref().update(patch));
   S.closing = false;
 }
+
+/** O anfitrião soma os pontos quando a rodada termina de vez (com os chutes). */
+let scoringKey = "";
+function autoScore(): void {
+  const room = S.room;
+  if (!room || room.status !== "result" || !isHost()) return;
+  const k = roomKeyOf(room);
+  if (scoringKey === k) return;
+  const p = scorePatch(room);
+  if (!p) return;
+  scoringKey = k;
+  void write(() => ref().update(p));
+}
+const roomKeyOf = (r: Room) => r.code + ":" + roundKey(r);
 
 /** O anfitrião fecha a votação quando todo mundo votou. */
 function autoClose(): void {
@@ -702,10 +795,34 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       break;
     }
     case "start":
-    case "again":
+    case "again": {
       S.draft = "";
       S.guessDraft = "";
-      await upd(newRoundPatch(room!));
+      // rodada que acabou sem o chute: conta como chute errado antes de começar outra
+      const sc = room!.status === "result" ? scorePatch(room!, true) : null;
+      await upd({ ...newRoundPatch(room!), ...(sc || {}) });
+      break;
+    }
+    case "endAsk":
+      S.endAsk = true;
+      render();
+      break;
+    case "endNo":
+      S.endAsk = false;
+      render();
+      break;
+    case "endYes": {
+      S.endAsk = false;
+      if (!isHost()) return;
+      let r = room!;
+      const sc = r.status === "result" ? scorePatch(r, true) : null;
+      if (sc) r = { ...r, scores: { ...(r.scores || {}), ...(sc.scores as Room["scores"]) } };
+      const list = ranking(r).map(({ u, n, p }) => ({ u, n, p }));
+      await upd({ ...(sc || {}), status: "podium", final: { at: now(), list }, updatedAt: now() });
+      break;
+    }
+    case "replay":
+      await upd({ status: "lobby", scores: null, scored: null, final: null, updatedAt: now() });
       break;
     case "lobby":
       await upd({ status: "lobby", updatedAt: now() });

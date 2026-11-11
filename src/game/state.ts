@@ -23,6 +23,8 @@ export const S = {
   manageOpen: false,
   /** jogador com a remoção esperando confirmação */
   kickAsk: null as string | null,
+  /** anfitrião pediu para encerrar a sala (esperando confirmar) */
+  endAsk: false,
   readOnly: false,
   closing: false,
 };
