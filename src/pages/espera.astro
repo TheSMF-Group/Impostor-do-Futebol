@@ -10,7 +10,7 @@ const ABERTURA = "2026-11-17T00:00:00Z";
     <div class="lines" aria-hidden="true"></div>
 
     <header class="gtop">
-      <span class="blogo"><img src="/bode.png" alt="" /><span class="bi">IMPOSTOR<i>.</i></span></span>
+      <span class="blogo"><img src="/bode.png" alt="" /><img class="lg" src="/logo-impostor.png" alt="Impostor"></span>
     </header>
 
     <section class="gbody">
@@ -48,7 +48,8 @@ const ABERTURA = "2026-11-17T00:00:00Z";
   .gate{position:relative;min-height:100svh;display:flex;flex-direction:column;overflow:hidden;background:#050505}
   .gate .glow{position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 38%,rgba(255,212,0,.16),transparent 75%);pointer-events:none}
   .gate .lines{position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 64px,transparent 64px 128px);pointer-events:none;mask-image:linear-gradient(#000,transparent 85%)}
-  .gtop{position:relative;display:flex;justify-content:center;padding:calc(18px + env(safe-area-inset-top,0px)) 16px 0}
+  .gtop .blogo{gap:10px}.gtop .blogo img{height:44px}.gtop .blogo img.lg{height:36px}
+  .gtop{position:relative;padding-bottom:14px !important;display:flex;justify-content:center;padding:calc(18px + env(safe-area-inset-top,0px)) 16px 0}
   .gbody{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 16px 24px;max-width:640px;width:100%;margin:0 auto;gap:14px}
   .gate .mascote{position:relative;width:min(78vw,340px);aspect-ratio:765/545;margin-bottom:-6px;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6));animation:gFloat 4s ease-in-out infinite}
   .gate .mascote img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}

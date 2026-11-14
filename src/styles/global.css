@@ -39,6 +39,7 @@ header.top .wrap{display:flex;align-items:center;justify-content:space-between;h
 /* logo do topo: mesma composição do logo grande (pixel vermelho + "do Futebol" manuscrito) */
 .blogo{display:flex;align-items:center;gap:10px;line-height:1}
 .blogo img{height:34px;width:auto;display:block}
+.blogo img.lg{height:28px}
 .blogo .bi{font-family:var(--display);color:var(--fg);font-size:30px;letter-spacing:.06em}
 .blogo .bi i{color:var(--accent);font-style:normal}
 .blogo .bs{font-family:var(--display);color:var(--muted);font-size:15px;letter-spacing:.1em;padding-top:4px}
@@ -299,7 +300,7 @@ dialog::backdrop{background:rgba(0,0,0,.75)}
 .btn.pulse{animation:pulseBtn 1.3s infinite}
 .cardbar.pulse{border-color:var(--red)}
 @media (prefers-reduced-motion:reduce){.award-card{transition:none}.confetti-piece,.rev-glow,.mo-in .ring{display:none}.mo-in,.mo-in.shake,.btn.pulse{animation:none}}
-@media (max-width:420px){header.top .wrap{gap:6px}.brand{font-size:14px}.brand .px{font-size:22px}.blogo .bi{font-size:26px}.blogo .bs{display:none}.roomtag{padding:4px 8px;letter-spacing:.12em}.link{padding:8px 4px}}
+@media (max-width:420px){header.top .wrap{gap:6px}.brand{font-size:14px}.brand .px{font-size:22px}.blogo img{height:28px}.blogo img.lg{height:21px}.blogo{gap:7px}.blogo .bs{display:none}.roomtag{padding:4px 8px;letter-spacing:.12em}.link{padding:8px 4px}}
 @media (max-width:820px){
   .hero .wrap{grid-template-columns:1fr;padding-block:24px}
   .hero .logo.art{order:-1;min-height:0;aspect-ratio:4/3;max-height:340px}
@@ -346,4 +347,4 @@ dialog::backdrop{background:rgba(0,0,0,.75)}
 .pact{display:grid;gap:8px}
 @media (prefers-reduced-motion:reduce){.podium *{animation-delay:0s!important;animation-duration:.01s!important}}
 
-@media (max-width:350px){.blogo img{height:26px}.blogo .bi{font-size:22px}.link{font-size:12px;padding:8px 3px}}
+@media (max-width:350px){.blogo img{height:24px}.blogo img.lg{height:18px}.link{font-size:12px;padding:8px 3px}}
