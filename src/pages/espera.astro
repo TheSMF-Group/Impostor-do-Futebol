@@ -109,7 +109,7 @@ const ABERTURA = "2026-11-17T00:00:00Z";
     }
     if (ms === 0 && !reloading) {
       reloading = true;
-      const go = async () => ((await liberado()) ? (location.href = "/") : setTimeout(go, 2000));
+      const go = async () => ((await liberado()) ? (location.href = "/" + location.search) : setTimeout(go, 2000));
       go();
     }
   }
@@ -133,7 +133,7 @@ const ABERTURA = "2026-11-17T00:00:00Z";
       });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.ok) {
-        location.href = "/";
+        location.href = "/" + location.search;
         return;
       }
       err.textContent = j.erro || "Chave inválida.";

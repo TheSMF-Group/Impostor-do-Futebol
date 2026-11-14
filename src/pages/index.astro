@@ -13,7 +13,8 @@ import Layout from "../layouts/Layout.astro";
     <div>
       <h1>Todo mundo sabe o craque. Menos um.</h1>
       <p class="lead">Crie uma sala, mande o código para a galera e cada um joga do próprio celular. Quem é do elenco vira a carta e vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha e precisa blefar.</p>
-      <div class="join">
+      <div class="join" id="joinBox">
+        <p class="invite-note" id="inviteNote" hidden></p>
         <input class="field" id="nick" maxlength="18" placeholder="Seu apelido" autocomplete="nickname" aria-label="Seu apelido">
         <button class="btn btn-red btn-block" id="createBtn" type="button">Criar sala</button>
         <div class="two"><input class="field code-field" id="codeIn" maxlength="4" placeholder="CÓDIGO" aria-label="Código da sala" autocomplete="off"><button class="btn btn-white" id="joinBtn" type="button">Entrar</button></div>

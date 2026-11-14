@@ -85,6 +85,7 @@ async function boot(): Promise<void> {
   if (!nick.value && b.nick) nick.value = b.nick;
   if (S.readOnly) homeErr("Sua conta só pode ver este jogo. Peça ao dono do jogo para te convidar como Editor para poder jogar.");
   watchList();
+  if (applyInvite()) return;
   const saved = ls.get("idf-room");
   if (saved) enterRoom(saved, true);
 }
@@ -128,6 +129,32 @@ function watchList(): void {
         $("roomsNote").textContent = "Não deu para carregar as salas.";
       },
     );
+}
+
+/* ---------- convite por link ---------- */
+const inviteLink = (): string => `${location.origin}/?sala=${S.code}`;
+
+/** Abriu um link ?sala=ABCD: preenche o código e deixa só o que falta (apelido + entrar). */
+function applyInvite(): boolean {
+  let c = "";
+  try {
+    c = (new URLSearchParams(location.search).get("sala") || "").toUpperCase().replace(/[^A-Z]/g, "");
+  } catch {
+    /* sem URLSearchParams */
+  }
+  if (c.length !== 4) return false;
+  $<HTMLInputElement>("codeIn").value = c;
+  $("joinBox").classList.add("invited");
+  document.body.classList.add("invited");
+  const note = $("inviteNote");
+  note.innerHTML = `Você foi convidado para a sala <b>${c}</b>`;
+  note.hidden = false;
+  $("joinBtn").textContent = "Entrar na sala " + c;
+  history.replaceState(null, "", location.pathname);
+  const nick = $<HTMLInputElement>("nick");
+  if (nick.value.trim()) void join();
+  else nick.focus();
+  return true;
 }
 
 /* ---------- criar / entrar ---------- */
@@ -274,6 +301,25 @@ function exitRoom(): void {
 }
 
 /* ---------- telas ---------- */
+let turnFocusKey = "";
+
+/** Separa a tela em topo / principal / lateral. No desktop vira duas colunas; no celular empilha. */
+function layoutZones(v: HTMLElement): void {
+  const kids = [...v.children] as HTMLElement[];
+  const top = kids.filter((k) => k.dataset.zone === "top");
+  const side = kids.filter((k) => k.dataset.zone === "side");
+  const main = kids.filter((k) => !top.includes(k) && !side.includes(k));
+  v.classList.toggle("wide", side.length > 0);
+  v.querySelectorAll<HTMLElement>("[data-act=start],[data-act=again],[data-act=confirmVote],[data-act=replay]").forEach((b) => b.classList.add("cta"));
+  if (!side.length) return;
+  const box = (cls: string, items: HTMLElement[]) => {
+    const d = document.createElement("div");
+    d.className = cls;
+    d.append(...items);
+    return d;
+  };
+  v.append(...(top.length ? [box("zone-top", top)] : []), box("zone-main", main), box("zone-side", side));
+}
 function render(): void {
   $("scr-home").hidden = screen() !== "home";
   $("scr-room").hidden = screen() !== "room";
@@ -297,10 +343,14 @@ function render(): void {
   const html =
     room.status === "lobby" ? lobbyHTML(room) : room.status === "clues" ? cluesHTML(room) : room.status === "vote" ? voteHTML(room) : room.status === "result" ? resultHTML(room) : "";
   v.innerHTML = html + `<p class="err center" id="roomErr" hidden></p>`;
+  layoutZones(v);
   const ci = document.getElementById("clueIn") as HTMLInputElement | null;
   if (ci) {
     ci.value = S.draft;
-    if (focused === "clueIn") ci.focus();
+    // chegou a vez da pessoa: já deixa o campo pronto para digitar
+    const fk = room.rn + ":" + stageKey(room) + ":" + Object.keys(room.clues?.[stageKey(room)] || {}).length;
+    if (focused === "clueIn" || turnFocusKey !== fk) ci.focus({ preventScroll: false });
+    turnFocusKey = fk;
   }
   const gi = document.getElementById("guessIn") as HTMLInputElement | null;
   if (gi) {
@@ -348,7 +398,7 @@ function chatHTML(room: Room, open: boolean): string {
         })
         .join("")
     : `<p class="note center" style="margin:8px 0">${open ? "Ninguém falou nada ainda. Explique sua pista ou acuse alguém." : "Ninguém conversou nesta votação."}</p>`;
-  return `<div class="panel chat"><h3>${open ? "Conversa" : "Conversa da votação"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
+  return `<div class="panel chat" data-zone="side"><h3>${open ? "Conversa" : "Conversa da votação"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
     canSend
       ? mine >= CHAT_MAX_PER_PLAYER
         ? `<p class="note" style="margin-top:8px">Você chegou ao limite de ${CHAT_MAX_PER_PLAYER} mensagens nesta rodada.</p>`
@@ -372,7 +422,8 @@ function lobbyHTML(room: Room): string {
     `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-act="opt" data-k="${k}" ${s[k] ? "checked" : ""} ${dis} aria-label="${t}"><span></span></label></div>`;
   return `<div class="kicker center">Sala de espera</div>
   <div class="codebox"><div><div class="kicker">Código da sala</div><div class="c">${esc(S.code)}</div></div><button class="btn btn-white btn-sm" type="button" data-act="copy">Copiar código</button></div>
-  <p class="note center" id="copyNote">Mande o código para a galera. Cada um entra pelo link do jogo no próprio celular.</p>
+  <div class="invite"><button class="btn btn-red" type="button" data-act="copyLink">Copiar link de convite</button><button class="btn btn-wa" type="button" data-act="wa">WhatsApp</button></div>
+  <p class="note center" id="copyNote">Mande o link: quem abrir já cai na sala, só falta o apelido.</p>
   <div class="panel"><h3>Jogadores · ${n}/15</h3><div class="players">${ids
     .map(
       (id) =>
@@ -380,7 +431,7 @@ function lobbyHTML(room: Room): string {
     )
     .join("")}</div>
   ${n < 3 ? `<p class="note" style="margin-top:10px">Faltam ${3 - n} para começar.</p>` : ""}</div>
-  <div class="panel"><h3>Regras da rodada${h ? "" : " <span class='note'>(o anfitrião escolhe)</span>"}</h3>
+  <div class="panel" data-zone="side"><h3>Regras da rodada${h ? "" : " <span class='note'>(o anfitrião escolhe)</span>"}</h3>
     <div class="row"><div><div class="t">Impostores</div><div class="d">Até ${mi} com ${n} jogador${n > 1 ? "es" : ""}.</div></div><div class="stepper"><button type="button" data-act="imps" data-d="-1" ${!h || s.imps <= 1 ? "disabled" : ""} aria-label="Menos impostores">−</button><output>${Math.min(s.imps, mi)}</output><button type="button" data-act="imps" data-d="1" ${!h || s.imps >= mi ? "disabled" : ""} aria-label="Mais impostores">+</button></div></div>
     ${
       Math.min(s.imps, mi) >= 2
@@ -417,6 +468,15 @@ function lobbyHTML(room: Room): string {
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
 }
 
+/** Onde a rodada está: pistas, votação, resultado. */
+function stepperHTML(room: Room, cur: number): string {
+  const st = isElim(room) && room.round ? ` · etapa ${room.round.stage || 1}` : "";
+  const labels = ["Pistas", "Votação", "Resultado"];
+  return `<div class="stepbar" data-zone="top"><span class="rn">Rodada ${room.rn}${st}</span><ol>${labels
+    .map((l, i) => `<li class="${i < cur ? "done" : i === cur ? "cur" : ""}"${i === cur ? ' aria-current="step"' : ""}><b>${i < cur ? "✓" : i + 1}</b><span>${l}</span></li>`)
+    .join("")}</ol></div>`;
+}
+
 function cluesHTML(room: Room): string {
   const r = room.round!,
     list = room.clues?.[stageKey(room)] || {},
@@ -434,18 +494,18 @@ function cluesHTML(room: Room): string {
       rows += `<div class="clue now">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx" style="color:var(--accent);font-size:14px">${mine ? "Sua vez" : "Pensando…"}</span></div>`;
     else rows += `<div class="clue wait">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx">—</span></div>`;
   });
-  return `<div class="kicker center">Rodada ${room.rn} · ${isElim(room) ? "etapa " + (r.stage || 1) + " · pistas" : "pistas"}</div>
+  return `${stepperHTML(room, 0)}
   ${cardBarHTML()}
   ${elimHTML(room)}
   ${
     mine
-      ? `<div class="panel"><h3>Sua vez de dar a pista</h3><div class="myturn"><input class="field" id="clueIn" maxlength="24" placeholder="Uma palavra" autocomplete="off" aria-label="Sua pista"><button class="btn btn-red" type="button" data-act="clue">Enviar</button></div><p class="note" style="margin-top:8px">Não vale o nome, o clube do jogador nem parte exata do nome.</p></div>`
-      : `<div class="banner center">Vez de <b style="display:inline">${esc(nickOf(turn))}</b>. Fiquem de olho nas pistas.</div>`
+      ? `<div class="panel turn-mine"><h3>Sua vez de dar a pista</h3><div class="myturn"><input class="field" id="clueIn" maxlength="24" placeholder="Uma palavra" autocomplete="off" aria-label="Sua pista"><button class="btn btn-red" type="button" data-act="clue">Enviar</button></div><p class="note" style="margin-top:8px">Não vale o nome, o clube do jogador nem parte exata do nome.</p></div>`
+      : `<div class="banner turn-wait">${dot(turn)}<span>Vez de <b style="display:inline">${esc(nickOf(turn))}</b>. Fiquem de olho nas pistas.</span></div>`
   }
   ${timerHTML(room, mine)}
-  <div class="panel"><h3>Pistas</h3><div class="clues">${rows}</div></div>
+  <div class="panel" data-zone="side"><h3>Pistas</h3><div class="clues">${rows}</div></div>
   ${manageHTML(room)}
-  ${isHost() ? `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}`;
+  ${isHost() ? `<div data-zone="side" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}`;
 }
 
 /** Eliminação: quem já saiu e se era impostor. */
@@ -493,7 +553,7 @@ function scoreboardHTML(room: Room): string {
   const rows = ranking(room);
   if (!rows.length || !Object.keys(room.scores || {}).length) return "";
   const last = room.scored?.[roundKey(room)] || {};
-  return `<div class="panel board"><h3>Placar da sala</h3><p class="note" style="margin:-4px 0 10px">Impostor que vence: +3 · Elenco que vence: +1 cada</p><div class="brows">${rows
+  return `<div class="panel board" data-zone="side"><h3>Placar da sala</h3><p class="note" style="margin:-4px 0 10px">Impostor que vence: +3 · Elenco que vence: +1 cada</p><div class="brows">${rows
     .map(
       (x) =>
         `<div class="brow${x.u === S.me ? " me" : ""}"><span class="bpos">${x.pos}º</span><span class="bnm">${esc(x.n)}${room.players?.[x.u] ? "" : ' <span class="note">(saiu)</span>'}</span>${
@@ -625,7 +685,7 @@ function voteHTML(room: Room): string {
         ready ? "Confirmar voto" : k > 1 ? `Escolha ${k} suspeitos (${my.length}/${k})` : "Escolha um suspeito"
       }</button>`;
   } else action = `<div class="banner center">Você está só assistindo esta votação.</div>`;
-  return `<div class="kicker center">Rodada ${room.rn} · ${isElim(room) ? "etapa " + (r.stage || 1) + " · " : ""}votação</div>
+  return `${stepperHTML(room, 1)}
   <h2 class="big center">${title}</h2>
   ${meter}
   ${cardBarHTML()}
@@ -648,7 +708,7 @@ function manageHTML(room: Room): string {
   if (!isHost()) return "";
   const ids = activeIds(room).filter((id) => id !== S.me);
   if (!ids.length) return "";
-  return `<details class="panel manage" id="manage"${S.manageOpen ? " open" : ""}><summary>Gerenciar jogadores <span class="note">(${ids.length + 1} na sala)</span></summary>
+  return `<details class="panel manage" data-zone="side" id="manage"${S.manageOpen ? " open" : ""}><summary>Gerenciar jogadores <span class="note">(${ids.length + 1} na sala)</span></summary>
   <p class="note" style="margin:8px 0 10px">Use para tirar quem caiu ou ficou offline. A partida segue sem a pessoa.</p>
   <div class="players">${ids
     .map(
@@ -694,7 +754,7 @@ function resultHTML(room: Room): string {
   const tally = res?.tally || {};
   const outAt: Record<string, number> = {};
   for (const x of r.outs || []) outAt[x.u] = x.st;
-  return `<div class="kicker center">Rodada ${room.rn} · resultado</div>
+  return `${stepperHTML(room, 2)}
   <div class="result ${o.win ? "win" : "lose"}">${o.win ? "" : `<div style="font-family:var(--pixel);color:var(--red);font-size:52px;line-height:.9;text-shadow:3px 3px 0 var(--red-deep)">Impostor</div>`}<h2>${o.title}</h2><p>${o.sub}</p>${r.chaos && r.imps.length && r.imps.length < r.players.length ? `<p>${esc(r.chaos)}</p>` : ""}<p style="margin-top:14px;font-size:13px;opacity:.75">Carta secreta · ${esc(themeName(r.cat))}</p>${o.pending ? `<div class="sw-word">Revelada depois do chute</div>` : secretHTML(r.cat, r.sid ? dec(r.sid) : null, word)}</div>
   ${canGuess && waitFor.length ? `<div class="banner center">Esperando também o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}.</div>` : ""}
   ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div></div>` : o.pending && waitFor.length ? `<div class="banner center">Esperando o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}…</div>` : ""}
@@ -791,6 +851,19 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       }
       break;
     }
+    case "copyLink": {
+      const l = inviteLink();
+      try {
+        await navigator.clipboard.writeText(l);
+        $("copyNote").textContent = "Link copiado. Cole no grupo da galera.";
+      } catch {
+        $("copyNote").textContent = "Copie o link: " + l;
+      }
+      break;
+    }
+    case "wa":
+      window.open("https://wa.me/?text=" + encodeURIComponent(`Bora jogar Impostor do Futebol! Entra na sala ${S.code}: ${inviteLink()}`), "_blank", "noopener");
+      break;
     case "kick":
       await upd({ players: { [b!.dataset.id!]: null }, updatedAt: now() });
       break;
@@ -999,6 +1072,11 @@ function wire(): void {
   });
   $("createBtn").addEventListener("click", () => void create());
   $("joinBtn").addEventListener("click", () => void join());
+  $("nick").addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key !== "Enter") return;
+    if ($("joinBox").classList.contains("invited") || $<HTMLInputElement>("codeIn").value.length === 4) void join();
+    else void create();
+  });
   const codeIn = $<HTMLInputElement>("codeIn");
   codeIn.addEventListener("keydown", (e) => {
     if (e.key === "Enter") void join();
