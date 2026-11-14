@@ -12,6 +12,7 @@
     "data": "node --experimental-strip-types tools/build-data.ts"
   },
   "dependencies": {
+    "@vercel/functions": "^3.11.3",
     "astro": "^5.16.0",
     "mqtt": "^5.14.1"
   },

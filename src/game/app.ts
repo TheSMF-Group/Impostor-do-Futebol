@@ -431,7 +431,7 @@ function cluesHTML(room: Room): string {
     const c = list[i];
     if (c) rows += `<div class="clue">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx">${esc(c.t)}</span></div>`;
     else if (i === idx)
-      rows += `<div class="clue now">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx" style="color:var(--red);font-size:14px">${mine ? "Sua vez" : "Pensando…"}</span></div>`;
+      rows += `<div class="clue now">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx" style="color:var(--accent);font-size:14px">${mine ? "Sua vez" : "Pensando…"}</span></div>`;
     else rows += `<div class="clue wait">${dot(id)}<span class="nm">${esc(nickOf(id))}</span><span class="tx">—</span></div>`;
   });
   return `<div class="kicker center">Rodada ${room.rn} · ${isElim(room) ? "etapa " + (r.stage || 1) + " · pistas" : "pistas"}</div>

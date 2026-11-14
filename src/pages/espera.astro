@@ -1,0 +1,146 @@
+---
+import Layout from "../layouts/Layout.astro";
+// 16/11/2026 21h de Brasília. O portão de verdade é o middleware.ts; aqui é só a vitrine.
+const ABERTURA = "2026-11-17T00:00:00Z";
+---
+
+<Layout title="Impostor do Futebol · estreia 16/11 às 21h" description="O Impostor do Futebol estreia dia 16/11 às 21h. Quem tem chave joga antes.">
+  <main class="gate">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="lines" aria-hidden="true"></div>
+
+    <header class="gtop">
+      <span class="blogo"><img src="/bode.png" alt="" /><span class="bi">IMPOSTOR<i>.</i></span></span>
+    </header>
+
+    <section class="gbody">
+      <div class="mascote" aria-hidden="true">
+        <img class="bE" src="/img/mascote/braco-esquerdo.webp" alt="" />
+        <img class="bD" src="/img/mascote/braco-direito.webp" alt="" />
+        <img class="corpo" src="/img/mascote/corpo.webp" alt="" />
+      </div>
+
+      <p class="kick">Estreia · segunda, 16/11 · 21h</p>
+      <h1>Todo mundo sabe o craque.<br /><span>Menos um.</span></h1>
+
+      <div class="count" id="count" data-open={ABERTURA} role="timer" aria-live="off" aria-label="Tempo até a estreia">
+        <div class="cell"><b id="d">--</b><small>dias</small></div>
+        <div class="cell"><b id="h">--</b><small>horas</small></div>
+        <div class="cell"><b id="m">--</b><small>min</small></div>
+        <div class="cell sec"><b id="s">--</b><small>seg</small></div>
+      </div>
+
+      <form class="key" id="keyForm" autocomplete="off">
+        <label for="keyIn">Se você tiver uma chave para jogar, coloque aqui</label>
+        <div class="krow">
+          <input id="keyIn" class="field" placeholder="SUA CHAVE" maxlength="24" autocapitalize="characters" spellcheck="false" aria-describedby="keyErr" />
+          <button class="btn btn-red" id="keyBtn" type="submit">Entrar</button>
+        </div>
+        <p class="err" id="keyErr" role="alert" hidden></p>
+      </form>
+    </section>
+
+    <footer class="gfoot">Jogo de impostor com temas de futebol · cada um joga do próprio celular.</footer>
+  </main>
+</Layout>
+
+<style is:global>
+  .gate{position:relative;min-height:100svh;display:flex;flex-direction:column;overflow:hidden;background:#050505}
+  .gate .glow{position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 38%,rgba(255,212,0,.16),transparent 75%);pointer-events:none}
+  .gate .lines{position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 64px,transparent 64px 128px);pointer-events:none;mask-image:linear-gradient(#000,transparent 85%)}
+  .gtop{position:relative;display:flex;justify-content:center;padding:calc(18px + env(safe-area-inset-top,0px)) 16px 0}
+  .gbody{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 16px 24px;max-width:640px;width:100%;margin:0 auto;gap:14px}
+  .gate .mascote{position:relative;width:min(78vw,340px);aspect-ratio:765/545;margin-bottom:-6px;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6));animation:gFloat 4s ease-in-out infinite}
+  .gate .mascote img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  @keyframes gFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  .gate .kick{font-family:var(--display);color:var(--accent);letter-spacing:.2em;font-size:18px;margin:0}
+  .gate h1{font-size:clamp(34px,8vw,56px);line-height:.98;margin:0}
+  .gate h1 span{color:var(--accent)}
+  .count{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;max-width:520px;margin:10px 0 6px}
+  .count .cell{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 4px 8px;position:relative;overflow:hidden}
+  .count .cell::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,.55)}
+  .count b{display:block;font-family:var(--display);font-weight:400;font-size:clamp(46px,14vw,84px);line-height:.95;color:#fff;font-variant-numeric:tabular-nums}
+  .count small{display:block;font-family:var(--display);letter-spacing:.18em;color:var(--muted);font-size:14px;margin-top:2px}
+  .count .sec{border-color:var(--accent)}
+  .count .sec b{color:var(--accent)}
+  .count .sec b.tick{animation:gTick .35s ease-out}
+  @keyframes gTick{from{transform:translateY(-8px);opacity:.3}to{transform:none;opacity:1}}
+  .key{width:100%;max-width:440px;margin-top:18px;display:grid;gap:10px}
+  .key label{color:var(--muted);font-size:14px}
+  .key .krow{display:grid;grid-template-columns:1fr auto;gap:8px}
+  .key .field{text-transform:uppercase;letter-spacing:.2em;text-align:center;font-weight:800}
+  .key .err{text-align:left}
+  .gfoot{position:relative;text-align:center;color:var(--muted);font-size:12px;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+  .gate.open .count{opacity:.5}
+  @media (prefers-reduced-motion:reduce){.gate .mascote,.count .sec b.tick{animation:none}}
+</style>
+
+<script>
+  const root = document.getElementById("count")!;
+  const open = Date.parse(root.dataset.open!);
+  const $ = (id: string) => document.getElementById(id)!;
+  let last = -1;
+  let reloading = false;
+
+  async function liberado(): Promise<boolean> {
+    try {
+      const r = await fetch("/?_=" + Date.now(), { cache: "no-store", headers: { accept: "text/html" } });
+      return r.ok && r.headers.get("x-impostor-gate") !== "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function tick() {
+    const ms = Math.max(0, open - Date.now());
+    const t = Math.floor(ms / 1000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    $("d").textContent = pad(Math.floor(t / 86400));
+    $("h").textContent = pad(Math.floor((t % 86400) / 3600));
+    $("m").textContent = pad(Math.floor((t % 3600) / 60));
+    const s = $("s");
+    s.textContent = pad(t % 60);
+    if (t !== last) {
+      s.classList.remove("tick");
+      void s.offsetWidth;
+      s.classList.add("tick");
+      last = t;
+    }
+    if (ms === 0 && !reloading) {
+      reloading = true;
+      const go = async () => ((await liberado()) ? (location.href = "/") : setTimeout(go, 2000));
+      go();
+    }
+  }
+  tick();
+  setInterval(tick, 250);
+
+  const form = $("keyForm") as HTMLFormElement;
+  const input = $("keyIn") as HTMLInputElement;
+  const err = $("keyErr");
+  const btn = $("keyBtn") as HTMLButtonElement;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    if (!input.value.trim()) return;
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/chave", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ chave: input.value }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) {
+        location.href = "/";
+        return;
+      }
+      err.textContent = j.erro || "Chave inválida.";
+    } catch {
+      err.textContent = "Sem conexão. Tente de novo.";
+    }
+    err.hidden = false;
+    btn.disabled = false;
+    input.select();
+  });
+</script>
