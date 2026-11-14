@@ -66,14 +66,21 @@ const revKey = (e: KeyboardEvent) => {
   if (e.key === "Escape") closeReveal();
 };
 
+let onCloseCb: (() => void) | null = null;
+
 export function closeReveal(): void {
+  const had = document.querySelector(".rev");
   document.querySelectorAll(".rev").forEach((x) => x.remove());
   document.removeEventListener("keydown", revKey);
+  const cb = onCloseCb;
+  onCloseCb = null;
+  if (had && cb) cb();
 }
 
 /** Mostra uma carta em tela cheia: verso com "?" e, depois, a virada 3D com brilho e confete. */
-export function showCard(face: string, delay: number): void {
+export function showCard(face: string, delay: number, onClose?: () => void): void {
   closeReveal();
+  onCloseCb = onClose ?? null;
   const el = document.createElement("div");
   el.className = "rev";
   el.setAttribute("role", "dialog");

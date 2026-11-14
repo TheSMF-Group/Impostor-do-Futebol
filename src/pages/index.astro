@@ -19,6 +19,9 @@ import Layout from "../layouts/Layout.astro";
         <button class="btn btn-red btn-block" id="createBtn" type="button">Criar sala</button>
         <div class="two"><input class="field code-field" id="codeIn" maxlength="4" placeholder="CÓDIGO" aria-label="Código da sala" autocomplete="off"><button class="btn btn-white" id="joinBtn" type="button">Entrar</button></div>
         <p class="err" id="homeErr" hidden></p>
+        <div class="or"><span>ou</span></div>
+        <button class="btn btn-ghost btn-block" id="localBtn" type="button">Modo local · um celular só</button>
+        <p class="note localnote">Sem sala nem código: passem o celular de mão em mão.</p>
       </div>
     </div>
     <div class="logo art" id="heroArt" aria-hidden="true"><div class="band"></div><div class="mascote"><img class="bE" src="/img/mascote/braco-esquerdo.webp" alt=""><img class="bD" src="/img/mascote/braco-direito.webp" alt=""><img class="corpo" src="/img/mascote/corpo.webp" alt=""></div></div>
@@ -40,6 +43,8 @@ import Layout from "../layouts/Layout.astro";
   </div></section>
   <footer><div class="wrap">Impostor do Futebol · cada jogador entra pelo próprio celular com o link do jogo.</div></footer>
 </main>
+
+<main id="scr-local" hidden><div class="wrap stage"><div class="col" id="localView"></div></div></main>
 
 <main id="scr-room" hidden><div class="wrap stage"><div class="col" id="roomView"></div></div></main>
 

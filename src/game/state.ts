@@ -31,7 +31,7 @@ export const S = {
   closing: false,
 };
 
-const COLORS = [
+export const COLORS = [
   "#E51B1B", "#F28C28", "#D4A017", "#2E9E5B", "#1E88E5", "#7E57C2", "#D81B60", "#00897B",
   "#6D4C41", "#546E7A", "#C0CA33", "#8E24AA", "#3949AB", "#F4511E", "#43A047",
 ];

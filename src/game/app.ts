@@ -1,4 +1,5 @@
 // Telas, ações e início do jogo.
+import { enterLocal, localActive, wireLocal } from "./local";
 import { connect } from "./backend";
 import { cardBarHTML, closeReveal, openReveal, secretHTML } from "./card";
 import { THEME_ORDER, THEMES, loadMedia, loadThemes, themeName } from "./data";
@@ -321,6 +322,7 @@ function layoutZones(v: HTMLElement): void {
   v.append(...(top.length ? [box("zone-top", top)] : []), box("zone-main", main), box("zone-side", side));
 }
 function render(): void {
+  if (localActive()) return;
   $("scr-home").hidden = screen() !== "home";
   $("scr-room").hidden = screen() !== "room";
   if (screen() !== "room") return;
@@ -1071,6 +1073,8 @@ function wire(): void {
     }
   });
   $("createBtn").addEventListener("click", () => void create());
+  $("localBtn").addEventListener("click", () => void enterLocal(render));
+  wireLocal();
   $("joinBtn").addEventListener("click", () => void join());
   $("nick").addEventListener("keydown", (e) => {
     if ((e as KeyboardEvent).key !== "Enter") return;
@@ -1131,4 +1135,5 @@ function wire(): void {
 export function start(): void {
   wire();
   void boot();
+  if (new URLSearchParams(location.search).get("modo") === "local") void enterLocal(render);
 }
