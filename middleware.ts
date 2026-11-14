@@ -79,8 +79,10 @@ export default async function middleware(request: Request): Promise<Response> {
   if (PUBLIC.some((r) => r.test(url.pathname))) return next();
 
   // Navegação: mostra a espera. Qualquer outra coisa (dados, imagens, api): 401.
-  const wantsHtml = request.method === "GET" && (request.headers.get("accept") ?? "").includes("text/html");
-  if (wantsHtml) {
+  // Robôs de preview (WhatsApp, Discord, X) mandam Accept: */*, então o critério é o caminho:
+  // sem extensão de arquivo (ou .html) é página.
+  const isPage = request.method === "GET" && (!/\.[a-z0-9]+$/i.test(url.pathname) || /\.html$/i.test(url.pathname));
+  if (isPage) {
     return rewrite(new URL("/espera", request.url), {
       headers: { "x-impostor-gate": "1", "cache-control": "no-store" },
     });
