@@ -5,6 +5,7 @@ interface Props {
   title?: string;
   description?: string;
 }
+const SITE = "https://impostor.thefenomeno.com";
 const {
   title = "Impostor do Futebol",
   description = "Jogo de impostor com temas de futebol. Crie uma sala e jogue com a galera, cada um do próprio celular.",
@@ -19,6 +20,20 @@ const {
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="description" content={description} />
     <link rel="icon" href="/bode.png" type="image/png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Impostor do Futebol" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={SITE} />
+    <meta property="og:image" content={SITE + "/og.png"} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mascote do Impostor do Futebol segurando duas máscaras: Todo mundo sabe o craque. Menos um." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={SITE + "/og.png"} />
     <title>{title}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link

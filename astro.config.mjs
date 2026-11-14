@@ -3,6 +3,6 @@ import { defineConfig } from "astro/config";
 
 // Site estático: o Vercel detecta o preset Astro e publica a pasta dist.
 export default defineConfig({
-  site: "https://impostor-do-futebol.vercel.app",
+  site: "https://impostor.thefenomeno.com",
   build: { inlineStylesheets: "auto" },
 });

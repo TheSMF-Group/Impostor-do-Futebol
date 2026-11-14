@@ -10,7 +10,7 @@ const COOKIE = "impostor_key";
 const DEFAULT_OPEN_AT = "2026-11-17T00:00:00Z";
 
 // Públicos mesmo com o portão fechado: a própria página de espera e o que ela usa.
-const PUBLIC = [/^\/espera\/?$/, /^\/_astro\//, /^\/bode\.png$/, /^\/img\/mascote\//, /^\/favicon/];
+const PUBLIC = [/^\/espera\/?$/, /^\/_astro\//, /^\/bode\.png$/, /^\/og\.png$/, /^\/img\/mascote\//, /^\/favicon/];
 
 const enc = new TextEncoder();
 const norm = (k: string) => k.toUpperCase().replace(/[^A-Z0-9]/g, "");
