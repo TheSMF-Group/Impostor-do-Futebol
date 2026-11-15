@@ -40,6 +40,43 @@ const ABERTURA = "2026-11-17T00:00:00Z";
       </form>
     </section>
 
+    <section class="lp how" id="como">
+      <h2>Como funciona</h2>
+      <ol class="steps">
+        <li><b>1</b><h3>Todo mundo recebe uma carta</h3><p>Um craque ou um time de futebol. Só que um de vocês recebe <em>impostor</em> e não sabe quem é.</p></li>
+        <li><b>2</b><h3>Cada um solta uma pista</h3><p>Fale algo que prove que você sabe de quem se trata, sem entregar de bandeja pro impostor.</p></li>
+        <li><b>3</b><h3>Votem em quem tá blefando</h3><p>Pegou o impostor? Ponto pra galera. Se ele escapar, ainda tem o chute final pra virar o jogo.</p></li>
+      </ol>
+    </section>
+
+    <section class="lp cards">
+      <div class="pair">
+        <div class="mcard ok"><small>sua carta</small><strong>O CRAQUE É</strong><span>? ? ? ? ?</span><em>fale uma pista</em></div>
+        <div class="mcard bad"><small>sua carta</small><strong>IMPOSTOR</strong><span>shhh</span><em>disfarça, ninguém pode saber</em></div>
+      </div>
+      <p class="cap">Duas pessoas, duas cartas. Só uma sabe o que está acontecendo.</p>
+    </section>
+
+    <section class="lp feat">
+      <h2>Do jeito que o grupo quiser</h2>
+      <div class="fgrid">
+        <div class="f"><h3>Cada um no seu celular</h3><p>Cria a sala, manda o link no grupo e cada um entra do próprio aparelho. Sem baixar nada.</p></div>
+        <div class="f"><h3>Modo Local</h3><p>Um celular só, passando de mão em mão. Perfeito pra resenha, churrasco e mesa de bar.</p></div>
+        <div class="f"><h3>Temas de futebol</h3><p>Craques, clubes e seleções. Quanto mais você conhece, mais difícil é blefar.</p></div>
+        <div class="f"><h3>3 a 15 jogadores</h3><p>Do rachão de três ao grupão inteiro. Pontuação e ranking no fim.</p></div>
+      </div>
+    </section>
+
+    <section class="lp share">
+      <h2>Chama a resenha</h2>
+      <p>A estreia é dia 16/11 às 21h. Marca o grupo.</p>
+      <div class="srow">
+        <button class="btn btn-red" id="shareBtn" type="button">Compartilhar</button>
+        <a class="btn" id="waBtn" href="#" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+      <p class="ok" id="shareMsg" hidden>Link copiado.</p>
+    </section>
+
     <footer class="gfoot">Jogo de impostor com temas de futebol · cada um joga do próprio celular.</footer>
   </main>
 </Layout>
@@ -72,6 +109,34 @@ const ABERTURA = "2026-11-17T00:00:00Z";
   .key .field{text-transform:uppercase;letter-spacing:.2em;text-align:center;font-weight:800}
   .key .err{text-align:left}
   .gfoot{position:relative;text-align:center;color:var(--muted);font-size:12px;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+
+  .lp{position:relative;width:100%;max-width:880px;margin:0 auto;padding:44px 16px 8px;text-align:center}
+  .lp h2{font-family:var(--display);font-weight:400;font-size:clamp(32px,7vw,48px);letter-spacing:.02em;margin:0 0 22px;color:#fff}
+  .lp h3{font-size:17px;margin:8px 0 6px;color:#fff}
+  .lp p{color:var(--muted);margin:0;line-height:1.5;font-size:15px}
+  .lp em{color:var(--accent);font-style:normal;font-weight:700}
+  .steps{list-style:none;margin:0;padding:0;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));text-align:left}
+  .steps li{background:var(--card);border:1.5px solid var(--line);border-radius:16px;padding:18px}
+  .steps b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--accent);color:#000;font-family:var(--display);font-weight:400;font-size:24px}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:520px;margin:0 auto}
+  .mcard{aspect-ratio:3/4;border-radius:18px;padding:14px 10px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;border:2px solid var(--line);background:linear-gradient(160deg,#171717,#0b0b0b);transition:transform .25s}
+  .mcard small{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+  .mcard strong{font-family:var(--display);font-weight:400;font-size:clamp(24px,6.5vw,34px);line-height:1}
+  .mcard span{font-family:var(--display);font-size:clamp(20px,5vw,28px);letter-spacing:.2em;color:#fff}
+  .mcard em{font-size:12px;color:var(--muted);font-style:normal}
+  .mcard.ok{border-color:var(--accent);transform:rotate(-3deg)}.mcard.ok strong{color:var(--accent)}
+  .mcard.bad{border-color:#e5322d;transform:rotate(3deg);background:linear-gradient(160deg,#2a0a09,#0b0b0b)}.mcard.bad strong{color:#ff4a43}
+  .pair:hover .mcard{transform:none}
+  .cap{margin-top:16px !important}
+  .fgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));text-align:left}
+  .fgrid .f{border-left:3px solid var(--accent);padding:4px 0 4px 14px}
+  .share .srow{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+  .share .srow .btn{min-width:150px;text-decoration:none;text-align:center;display:inline-flex;align-items:center;justify-content:center}
+  .share .srow a.btn{background:#25d366;color:#04210f;border-color:#25d366}
+  .share .ok{margin-top:12px;color:var(--accent)}
+  .rv{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
+  .rv.in{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
   .gate.open .count{opacity:.5}
   @media (prefers-reduced-motion:reduce){.gate .mascote,.count .sec b.tick{animation:none}}
 </style>
@@ -144,4 +209,25 @@ const ABERTURA = "2026-11-17T00:00:00Z";
     btn.disabled = false;
     input.select();
   });
+
+  // compartilhar
+  const url = location.origin + "/";
+  const texto = "Impostor do Futebol estreia 16/11 às 21h. Todo mundo sabe o craque, menos um.";
+  $("waBtn").setAttribute("href", "https://wa.me/?text=" + encodeURIComponent(texto + " " + url));
+  $("shareBtn").addEventListener("click", async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Impostor do Futebol", text: texto, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      const m = $("shareMsg");
+      m.hidden = false;
+      setTimeout(() => (m.hidden = true), 2500);
+    } catch {}
+  });
+
+  // entrada suave das seções
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))), { threshold: 0.12 });
+  document.querySelectorAll(".lp").forEach((el) => { el.classList.add("rv"); io.observe(el); });
 </script>
