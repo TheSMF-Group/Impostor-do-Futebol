@@ -1,6 +1,7 @@
 // Telas, ações e início do jogo.
+import { keepAwake } from "./wake";
 import { enterLocal, localActive, wireLocal } from "./local";
-import { connect } from "./backend";
+import { connect, ServerError } from "./backend";
 import { cardBarHTML, closeReveal, openReveal, secretHTML } from "./card";
 import { THEME_ORDER, THEMES, loadMedia, loadThemes, themeName } from "./data";
 import { cue } from "./moments";
@@ -9,22 +10,17 @@ import {
   activeIds,
   catsOf,
   cluesByPlayer,
-  elimPatch,
   genCode,
-  guessOk,
   guessesOf,
   isElim,
   liveIds,
   maxImps,
   newRoomDoc,
-  newRoundPatch,
   outcome,
   picksOf,
   ranking,
   roundKey,
-  scorePatch,
   stageKey,
-  tallyVotes,
   votesPerPlayer,
 } from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
@@ -60,6 +56,7 @@ async function write(fn: () => Promise<void>): Promise<boolean> {
       S.readOnly = true;
       alertBox("Sua conta não pode jogar aqui. Peça ao dono do jogo para te convidar como Editor.");
     } else if (code === "quota_exceeded") alertBox("O jogo atingiu o limite de salas. Avise o dono do jogo.");
+    else if (e instanceof ServerError && !["conexao", "tempo"].includes(e.code)) alertBox(e.message);
     else alertBox("Não deu para salvar. Confira a conexão e tente de novo.");
     return false;
   }
@@ -229,6 +226,7 @@ function enterRoom(c: string, silent = false): void {
   S.seenRn = null;
   closeReveal();
   ls.set("idf-room", c);
+  keepAwake(true);
   const tag = $("roomTag");
   tag.textContent = c;
   tag.hidden = false;
@@ -276,8 +274,6 @@ function enterRoom(c: string, silent = false): void {
       S.room = r;
       if (S.revRn !== null && (r.rn !== S.revRn || r.status === "lobby")) closeReveal();
       render();
-      autoClose();
-      autoScore();
       cue(prev, r, S.me);
     },
     () => {
@@ -297,6 +293,7 @@ function exitRoom(): void {
   S.code = null;
   S.room = null;
   ls.set("idf-room", null);
+  keepAwake(false);
   $("roomTag").hidden = true;
   render();
 }
@@ -633,8 +630,7 @@ function timerHTML(room: Room, mine: boolean): string {
   return `<div class="ttimer${mine ? " mine" : ""}${left <= 10000 ? " low" : ""}" id="turnTimer" data-end="${end}" role="timer"><span>${mine ? "Seu tempo" : "Tempo da vez"}</span><b>${fmtLeft(left)}</b></div>`;
 }
 
-let skipKey = "";
-/** A cada segundo: atualiza o relógio e, no anfitrião, passa a vez quando o tempo acaba. */
+/** A cada segundo: atualiza o relógio (quem passa a vez quando o tempo acaba é o servidor). */
 function tick(): void {
   const el = document.getElementById("turnTimer");
   if (el) {
@@ -643,20 +639,6 @@ function tick(): void {
     if (b) b.textContent = fmtLeft(left);
     el.classList.toggle("low", left <= 10000);
   }
-  const room = S.room;
-  if (!room || !isHost()) return;
-  const end = turnEnd(room);
-  if (!end || Date.now() < end + 1000) return;
-  const sk = stageKey(room),
-    i = Object.keys(room.clues?.[sk] || {}).length,
-    who = room.round?.order[i];
-  const key = sk + ":" + i;
-  if (!who || skipKey === key) return;
-  skipKey = key;
-  const last = i === room.round!.order.length - 1;
-  void write(() =>
-    ref().update({ clues: { [sk]: { [i]: { u: who, t: "(tempo esgotado)" } } }, updatedAt: now(), turnAt: now(), ...(last ? { status: "vote" } : {}) }),
-  );
 }
 
 function voteHTML(room: Room): string {
@@ -778,63 +760,8 @@ function resultHTML(room: Room): string {
 }
 
 /* ---------- ações ---------- */
-async function closeVote(): Promise<void> {
-  if (S.closing || !S.room) return;
-  S.closing = true;
-  const room = S.room;
-  const patch: Patch = isElim(room) ? elimPatch(room) : { status: "result", result: { [rk()]: tallyVotes(room) }, updatedAt: now() };
-  await write(() => ref().update(patch));
-  S.closing = false;
-}
-
-/** O anfitrião soma os pontos quando a rodada termina de vez (com os chutes). */
-let scoringKey = "";
-function autoScore(): void {
-  const room = S.room;
-  if (!room || room.status !== "result" || !isHost()) return;
-  const k = roomKeyOf(room);
-  if (scoringKey === k) return;
-  const p = scorePatch(room);
-  if (!p) return;
-  scoringKey = k;
-  void write(() => ref().update(p));
-}
-const roomKeyOf = (r: Room) => r.code + ":" + roundKey(r);
-
-/** O anfitrião fecha a votação quando todo mundo votou. */
-function autoClose(): void {
-  const room = S.room;
-  if (!room || room.status !== "vote" || !isHost() || !room.round) return;
-  const vs = room.votes?.[stageKey(room)] || {},
-    k = votesPerPlayer(room);
-  if (liveIds(room).every((id) => voteDone(picksOf(vs[id]), k) || !room.players?.[id])) void closeVote();
-}
-
-/** Tira alguém da sala. Durante as pistas, a vez dele é pulada e a ordem segue sem ele. */
-function kickPatch(room: Room, id: string): Patch {
-  const p: Patch = { players: { [id]: null }, updatedAt: now() };
-  const r = room.round;
-  if (!r || (room.status !== "clues" && room.status !== "vote")) return p;
-  const round: Patch = {};
-  if (r.alive) round.alive = r.alive.filter((x) => x !== id);
-  if (room.status === "clues") {
-    const idx = Object.keys(room.clues?.[stageKey(room)] || {}).length;
-    const order = r.order.slice(0, idx).concat(r.order.slice(idx).filter((x) => x !== id));
-    round.order = order;
-    if (order[idx] !== r.order[idx]) p.turnAt = now();
-    if (order.length <= idx) p.status = "vote";
-  }
-  if (room.status === "vote") {
-    // quem tinha votado em quem saiu precisa votar de novo (e o voto de quem saiu deixa de contar)
-    const sk = stageKey(room),
-      vs = room.votes?.[sk] || {},
-      clear: Patch = {};
-    for (const [voter, v] of Object.entries(vs)) if (voter === id || picksOf(v).includes(id)) clear[voter] = null;
-    if (Object.keys(clear).length) p.votes = { [sk]: clear };
-  }
-  if (Object.keys(round).length) p.round = round;
-  return p;
-}
+/** Pedido que o servidor decide (sorteio, apuração, chute, pontos). */
+const send = (a: string, d?: Record<string, unknown>) => write(() => ref().act(a, d));
 
 async function act(a: string, b?: HTMLElement): Promise<void> {
   const room = S.room;
@@ -867,7 +794,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       window.open("https://wa.me/?text=" + encodeURIComponent(`Bora jogar Impostor do Futebol! Entra na sala ${S.code}: ${inviteLink()}`), "_blank", "noopener");
       break;
     case "kick":
-      await upd({ players: { [b!.dataset.id!]: null }, updatedAt: now() });
+      await send("kick", { id: b!.dataset.id! });
       break;
     case "imps": {
       const n = activeIds(room!).length;
@@ -892,9 +819,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       S.openClues = [];
       S.draft = "";
       S.guessDraft = "";
-      // rodada que acabou sem o chute: conta como chute errado antes de começar outra
-      const sc = room!.status === "result" ? scorePatch(room!, true) : null;
-      await upd({ ...newRoundPatch(room!), ...(sc || {}) });
+      await send("start");
       break;
     }
     case "clues": {
@@ -911,21 +836,16 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       S.endAsk = false;
       render();
       break;
-    case "endYes": {
+    case "endYes":
       S.endAsk = false;
       if (!isHost()) return;
-      let r = room!;
-      const sc = r.status === "result" ? scorePatch(r, true) : null;
-      if (sc) r = { ...r, scores: { ...(r.scores || {}), ...(sc.scores as Room["scores"]) } };
-      const list = ranking(r).map(({ u, n, p }) => ({ u, n, p }));
-      await upd({ ...(sc || {}), status: "podium", final: { at: now(), list }, updatedAt: now() });
+      await send("endYes");
       break;
-    }
     case "replay":
-      await upd({ status: "lobby", scores: null, scored: null, final: null, updatedAt: now() });
+      await send("replay");
       break;
     case "lobby":
-      await upd({ status: "lobby", updatedAt: now() });
+      await send("lobby");
       break;
     case "card":
       await openReveal(render);
@@ -937,11 +857,9 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         return;
       }
       const r = room!.round!,
-        sk = stageKey(room!),
-        i = Object.keys(room!.clues?.[sk] || {}).length;
+        i = Object.keys(room!.clues?.[stageKey(room!)] || {}).length;
       if (r.order[i] !== S.me) return;
-      const last = i === r.order.length - 1;
-      if (await upd({ clues: { [sk]: { [i]: { u: S.me, t } } }, updatedAt: now(), turnAt: now(), ...(last ? { status: "vote" } : {}) })) S.draft = "";
+      if (await send("clue", { t })) S.draft = "";
       break;
     }
     case "chat": {
@@ -959,16 +877,11 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       render();
       break;
     }
-    case "skip": {
-      const r = room!.round!,
-        sk = stageKey(room!),
-        i = Object.keys(room!.clues?.[sk] || {}).length;
-      const last = i === r.order.length - 1;
-      await upd({ clues: { [sk]: { [i]: { u: r.order[i], t: "(pulou a vez)" } } }, updatedAt: now(), turnAt: now(), ...(last ? { status: "vote" } : {}) });
+    case "skip":
+      await send("skip");
       break;
-    }
     case "tovote":
-      await upd({ status: "vote", updatedAt: now() });
+      await send("tovote");
       break;
     case "vote": {
       // só marca no aparelho; o voto vale quando a pessoa toca em Confirmar voto
@@ -1017,7 +930,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       const id = b!.dataset.id!;
       S.kickAsk = null;
       if (!isHost() || id === S.me) return;
-      await upd(kickPatch(room!, id));
+      await send("kick", { id });
       break;
     }
     case "clueTime":
@@ -1027,7 +940,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       await upd({ settings: { voteMode: b!.dataset.k! }, updatedAt: now() });
       break;
     case "close":
-      await closeVote();
+      await send("close");
       break;
     case "guess": {
       const t = S.guessDraft.trim();
@@ -1037,18 +950,11 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       }
       const o = outcome(room!, (id) => id);
       if (!o.guessers?.includes(S.me) || guessesOf(room!)[S.me]) return;
-      const ok = guessOk(t, dec(room!.round!.secret), room!.round!.cat);
-      if (await upd({ guess: { [rk()]: { [S.me]: { t, ok } } }, updatedAt: now() })) S.guessDraft = "";
+      if (await send("guess", { t })) S.guessDraft = "";
       break;
     }
     case "leave": {
-      if (room && S.me && room.players?.[S.me]) {
-        const rest = activeIds(room).filter((id) => id !== S.me);
-        const patch: Patch = { players: { [S.me]: null }, updatedAt: now() };
-        if (room.host === S.me && rest.length) patch.host = rest[0];
-        if (!rest.length) patch.status = "closed";
-        await upd(patch);
-      }
+      if (room && S.me && room.players?.[S.me]) await send("leave").catch(() => {});
       exitRoom();
       break;
     }

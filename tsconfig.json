@@ -1,7 +1,15 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "include": [".astro/types.d.ts", "src/**/*", "tools/**/*"],
-  "exclude": ["dist"],
+  "include": [
+    ".astro/types.d.ts",
+    "src/**/*",
+    "tools/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "worker",
+    "node_modules"
+  ],
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "noUncheckedIndexedAccess": false

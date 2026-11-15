@@ -17,6 +17,15 @@ async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
+/** Usado pelo servidor das salas, que recebe os temas no próprio pacote em vez de buscar por rede. */
+export function setThemes(t: Record<string, Theme>): void {
+  THEMES = t;
+  for (const k in THEMES) {
+    IDX[k] = {};
+    for (const i of THEMES[k].items) IDX[k][i[0]] = i;
+  }
+}
+
 export async function loadThemes(): Promise<void> {
   const t = await getJson<{ themes: Record<string, Theme> }>("/data/temas.json");
   THEMES = t?.themes ?? {};

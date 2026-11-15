@@ -1,13 +1,10 @@
-// Onde ficam as salas.
-// - Dentro do claude.ai: banco do próprio artifact (window.claude).
-// - Fora (Vercel): MQTT em broker público. Cada sala é uma mensagem retida com o estado inteiro;
-//   só o anfitrião grava. Os outros mandam o pedaço que mudou para <sala>/in e o anfitrião aplica.
-import type { MqttClient } from "mqtt";
+// Onde ficam as salas: no Worker do Impostor (um Durable Object por sala, autoridade no servidor).
+// O cliente fala por WebSocket. Mantém o formato antigo de "banco" (doc / onSnapshot / update) e ganha act(),
+// para os pedidos que o servidor decide (sortear, apurar, chutar, pontuar).
 import type { Db, DocRef, DocSnap, Patch, Query, QuerySnap, Room } from "./types";
-import { deepMerge, jclone } from "./util";
 
-const MQ_BROKERS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
-const MQ_NS = "impostor-do-futebol/v1/rooms/";
+const BASE: string = (import.meta.env.PUBLIC_SALAS_URL as string | undefined) || "https://impostor-salas.thefenomeno.com";
+const WS_BASE = BASE.replace(/^http/, "ws");
 
 export interface Backend {
   db: Db;
@@ -16,227 +13,249 @@ export interface Backend {
   readOnly: boolean;
 }
 
-/** Tenta o claude.ai; se não houver, usa MQTT. Devolve null se nada conectar. */
-export async function connect(): Promise<Backend | null> {
-  const c = window.claude;
-  if (c?.use) {
-    const [db, user] = await Promise.all([c.use("db"), c.use("user")]);
-    if (db && user) {
-      const me = await user.id();
-      const name = await user.name();
-      const w = await user.can("data.write");
-      return { db, me, nick: name ? name.split(" ")[0].slice(0, 18) : undefined, readOnly: w === false };
-    }
+/** Erro devolvido pelo servidor (ex.: "cheia", "vez", "proibido"). */
+export class ServerError extends Error {
+  constructor(public code: string, message: string) {
+    super(message);
   }
-  const me = localId();
-  const db = await mqttDb(me).catch(() => null);
-  return db ? { db, me, readOnly: false } : null;
 }
 
-/** Id por aba: duas abas no mesmo aparelho contam como jogadores diferentes. */
-function localId(): string {
-  let id: string | null = null;
+/** Identidade por aba: id público + segredo, para ninguém se passar por outro jogador. */
+function identity(): { me: string; k: string } {
+  const rnd = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
   try {
-    id = sessionStorage.getItem("idf-uid");
+    let me = sessionStorage.getItem("idf-uid");
+    let k = sessionStorage.getItem("idf-key");
+    if (!me || !k || !/^[a-z0-9]{6,24}$/i.test(me)) {
+      me = "u" + rnd(11);
+      k = rnd(24);
+      sessionStorage.setItem("idf-uid", me);
+      sessionStorage.setItem("idf-key", k);
+    }
+    return { me, k };
   } catch {
-    /* sem armazenamento */
+    return { me: "u" + rnd(11), k: rnd(24) };
   }
-  if (!id) {
-    id = "u" + Math.random().toString(36).slice(2, 12);
+}
+
+let ticket = "";
+let ticketAt = 0;
+/** Ingresso assinado pelo site (só quem está liberado recebe). Em desenvolvimento local não existe e o Worker dispensa. */
+async function getTicket(): Promise<string> {
+  if (ticket && Date.now() - ticketAt < 30 * 60_000) return ticket;
+  try {
+    const r = await fetch("/api/ticket", { cache: "no-store" });
+    if (r.ok) {
+      ticket = ((await r.json()) as { t: string }).t;
+      ticketAt = Date.now();
+    }
+  } catch {
+    /* sem ingresso: o Worker decide */
+  }
+  return ticket;
+}
+
+type Msg = { t: string; r?: Room; rooms?: Room[]; id?: number; c?: string; m?: string };
+
+/** Uma conexão (sala ou lista) com reconexão automática. */
+class Conn {
+  ws: WebSocket | null = null;
+  listeners = new Set<(m: Msg) => void>();
+  onFail = new Set<() => void>();
+  pending = new Map<number, { ok: () => void; no: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  seq = 0;
+  tries = 0;
+  closed = false;
+  ready: Promise<void> | null = null;
+  ping: ReturnType<typeof setInterval> | null = null;
+  idle: ReturnType<typeof setTimeout> | null = null;
+  last: Msg | null = null;
+
+  constructor(private path: (t: string) => string, private params: () => string) {}
+
+  async open(): Promise<void> {
+    if (this.ready) return this.ready;
+    this.ready = new Promise<void>((resolve, reject) => {
+      void (async () => {
+        const t = await getTicket();
+        const ws = new WebSocket(`${WS_BASE}${this.path(t)}${this.params()}${t ? "&t=" + encodeURIComponent(t) : ""}`);
+        this.ws = ws;
+        ws.onopen = () => {
+          this.tries = 0;
+          resolve();
+          this.ping ||= setInterval(() => ws.readyState === 1 && ws.send("ping"), 25_000);
+        };
+        ws.onmessage = (e) => {
+          if (e.data === "pong") return;
+          let m: Msg;
+          try {
+            m = JSON.parse(e.data as string) as Msg;
+          } catch {
+            return;
+          }
+          if (m.t === "ack" || m.t === "err") {
+            const p = this.pending.get(m.id ?? -1);
+            if (p) {
+              clearTimeout(p.timer);
+              this.pending.delete(m.id!);
+              m.t === "ack" ? p.ok() : p.no(new ServerError(m.c || "erro", m.m || "Erro."));
+            }
+            return;
+          }
+          this.last = m;
+          for (const f of [...this.listeners]) f(m);
+        };
+        ws.onclose = () => {
+          this.ws = null;
+          this.ready = null;
+          if (this.ping) clearInterval(this.ping);
+          this.ping = null;
+          for (const [, p] of this.pending) {
+            clearTimeout(p.timer);
+            p.no(new ServerError("conexao", "Conexão perdida."));
+          }
+          this.pending.clear();
+          if (this.closed) return;
+          // o servidor encerra de propósito quando manda none/exists/denied: sem reconexão
+          if (this.last && ["none", "exists", "denied"].includes(this.last.t)) return;
+          if (++this.tries > 12) {
+            reject(new Error("falhou"));
+            this.onFail.forEach((f) => f());
+            return;
+          }
+          setTimeout(() => !this.closed && this.listeners.size && void this.open().catch(() => {}), Math.min(4000, 400 * this.tries));
+        };
+        ws.onerror = () => {
+          if (ws.readyState !== 1 && this.tries === 0) reject(new Error("falhou"));
+        };
+      })();
+    });
+    this.ready.catch(() => {});
+    return this.ready;
+  }
+
+  async request(msg: Record<string, unknown>): Promise<void> {
+    await this.open();
+    const id = ++this.seq;
+    return new Promise<void>((ok, no) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        no(new ServerError("tempo", "O servidor demorou para responder."));
+      }, 10_000);
+      this.pending.set(id, { ok, no, timer });
+      this.ws?.send(JSON.stringify({ ...msg, id }));
+    });
+  }
+
+  listen(f: (m: Msg) => void): () => void {
+    this.listeners.add(f);
+    if (this.idle) clearTimeout(this.idle);
+    this.idle = null;
+    void this.open().catch(() => this.onFail.forEach((g) => g()));
+    if (this.last && this.ws) f(this.last);
+    return () => {
+      this.listeners.delete(f);
+      if (!this.listeners.size) this.close();
+    };
+  }
+
+  /** Fecha se ninguém ouvir em 15 s (a entrada por update() abre antes de existir ouvinte). */
+  soltaSeOcioso(): void {
+    if (this.idle) clearTimeout(this.idle);
+    this.idle = setTimeout(() => !this.listeners.size && this.close(), 15_000);
+  }
+
+  close(): void {
+    this.closed = true;
+    if (this.ping) clearInterval(this.ping);
     try {
-      sessionStorage.setItem("idf-uid", id);
+      this.ws?.close();
     } catch {
-      /* sem armazenamento */
+      /* já fechou */
     }
   }
-  return id;
 }
 
-async function openClient(uid: string): Promise<MqttClient> {
-  const { default: mqtt } = await import("mqtt");
-  for (const url of MQ_BROKERS) {
-    const c = mqtt.connect(url, {
-      clientId: "idf_" + uid + "_" + Math.random().toString(36).slice(2, 6),
-      clean: true,
-      connectTimeout: 6000,
-      reconnectPeriod: 2000,
-      keepalive: 20,
-    });
-    const ok = await new Promise<boolean>((res) => {
-      const t = setTimeout(() => res(false), 7000);
-      c.once("connect", () => {
-        clearTimeout(t);
-        res(true);
-      });
-      c.once("error", () => {
-        clearTimeout(t);
-        res(false);
-      });
-    });
-    if (ok) return c;
-    c.end(true);
-  }
-  throw { code: "upstream_error" };
-}
+const conns = new Map<string, Conn>();
+const creating = new Map<string, string>();
 
-async function mqttDb(uid: string): Promise<Db> {
-  const client = await openClient(uid);
-  const docs = new Map<string, Room | null>();
-  const subs = new Map<string, Set<() => void>>();
-  const lists = new Set<() => void>();
-  const ready = new Map<string, { p: Promise<void>; ok: (() => void) | null }>();
-  const vers = new Map<string, number>();
-
-  const fire = (code: string) => {
-    subs.get(code)?.forEach((f) => f());
-    lists.forEach((f) => f());
-  };
-  const pub = (code: string, st: Room | null) => {
-    const cur = docs.get(code);
-    const v = Math.max(cur?._v ?? 0, st?._v ?? 0, vers.get(code) ?? 0) + 1;
-    vers.set(code, v);
-    if (st && st.status === "closed") st = null;
-    if (st) st._v = v;
-    docs.set(code, st);
-    client.publish(MQ_NS + code, st ? JSON.stringify(st) : "", { retain: true, qos: 1 });
-    fire(code);
-  };
-
-  client.on("message", (topic, buf) => {
-    if (!topic.startsWith(MQ_NS)) return;
-    const [code, kind] = topic.slice(MQ_NS.length).split("/");
-    if (!/^[A-Z]{4}$/.test(code)) return;
-    if (kind === "in") {
-      const st = docs.get(code);
-      if (!st || st.host !== uid) return;
-      try {
-        const p = JSON.parse(buf.toString()) as unknown;
-        if (p && typeof p === "object") {
-          deepMerge(st as unknown as Patch, p as Patch);
-          st.updatedAt = Date.now();
-          pub(code, st);
-        }
-      } catch {
-        /* mensagem inválida */
-      }
-      return;
+function db(me: string, k: string): Db {
+  const sala = (code: string): Conn => {
+    let c = conns.get(code);
+    if (!c || c.closed) {
+      const nick = creating.get(code);
+      c = new Conn(
+        () => `/s/${code}`,
+        () => `?me=${me}&k=${k}${nick ? "&create=1&nick=" + encodeURIComponent(nick) : ""}`,
+      );
+      conns.set(code, c);
+      c.soltaSeOcioso();
     }
-    if (kind) return;
-    const txt = buf.toString();
-    let st: Room | null = null;
-    if (txt) {
-      try {
-        st = JSON.parse(txt) as Room;
-      } catch {
-        st = null;
-      }
-    }
-    // ignora versões antigas (inclusive o eco das próprias publicações chegando atrasado)
-    const nv = st ? st._v ?? 0 : Infinity;
-    if (nv < (vers.get(code) ?? 0)) return;
-    if (st) vers.set(code, nv);
-    docs.set(code, st);
-    const r = ready.get(code);
-    if (r?.ok) {
-      r.ok();
-      r.ok = null;
-    }
-    fire(code);
-  });
-  client.subscribe(MQ_NS + "+", { qos: 1 });
-
-  const ensure = (code: string): Promise<void> => {
-    const have = ready.get(code);
-    if (have) return have.p;
-    const r: { p: Promise<void>; ok: (() => void) | null } = { p: Promise.resolve(), ok: null };
-    r.p = new Promise<void>((ok) => {
-      r.ok = ok;
-      setTimeout(() => {
-        if (r.ok) {
-          if (!docs.has(code)) docs.set(code, null);
-          r.ok();
-          r.ok = null;
-        }
-      }, 4000);
-    });
-    ready.set(code, r);
-    client.subscribe([MQ_NS + code, MQ_NS + code + "/in"], { qos: 1 });
-    return r.p;
+    return c;
   };
-  const snap = (code: string): DocSnap => {
-    const st = docs.get(code) ?? null;
-    return { id: code, exists: !!st, data: () => jclone(st), metadata: { fromCache: false } };
-  };
-  const codeOf = (path: string) => String(path).split("/")[1];
-
+  const snap = (r: Room | null): DocSnap => ({ exists: !!r, data: () => r, metadata: { fromCache: false } });
   return {
-    doc(path): DocRef {
-      const code = codeOf(path);
+    doc(path: string): DocRef {
+      const code = path.split("/")[1];
       return {
         async get() {
-          await ensure(code);
-          return snap(code);
+          const t = await getTicket();
+          const r = await fetch(`${BASE}/s/${code}/info?me=${me}${t ? "&t=" + encodeURIComponent(t) : ""}`, { cache: "no-store" });
+          if (!r.ok) throw new ServerError("rede", "Não deu para falar com o servidor.");
+          const j = (await r.json()) as { exists: boolean; room: Room | null };
+          return snap(j.exists ? j.room : null);
         },
-        async set(d) {
-          await ensure(code);
-          pub(code, jclone(d));
+        async set(room: Room) {
+          creating.set(code, room.players?.[room.host]?.nick || "Jogador");
+          conns.get(code)?.close();
+          conns.delete(code);
+          await sala(code).open();
         },
-        async update(p) {
-          await ensure(code);
-          const st = docs.get(code);
-          if (!st) throw { code: "not_found" };
-          if (st.host === uid) {
-            deepMerge(st as unknown as Patch, p);
-            pub(code, st);
-          } else
-            await new Promise<void>((ok, no) =>
-              client.publish(MQ_NS + code + "/in", JSON.stringify(p), { qos: 1 }, (e) => (e ? no(e) : ok())),
-            );
+        async update(p: Patch) {
+          await sala(code).request({ t: "patch", p });
         },
-        onSnapshot(next) {
-          const f = () => next(snap(code));
-          let set = subs.get(code);
-          if (!set) {
-            set = new Set();
-            subs.set(code, set);
-          }
-          set.add(f);
-          void ensure(code).then(f);
-          return () => set.delete(f);
+        async act(a: string, d?: Record<string, unknown>) {
+          await sala(code).request({ t: "do", a, d: d || {} });
+        },
+        onSnapshot(next, err) {
+          const c = sala(code);
+          const off = c.listen((m) => {
+            if (m.t === "room" && m.r) next(snap(m.r));
+            else if (m.t === "none" || m.t === "exists") next(snap(null));
+            else if (m.t === "denied") err?.(new ServerError("denied", "Identidade recusada."));
+          });
+          c.onFail.add(() => err?.(new ServerError("conexao", "Sem conexão.")));
+          return () => {
+            off();
+            creating.delete(code);
+            conns.delete(code);
+          };
         },
       };
     },
     collection(): Query {
-      const w: [string, unknown][] = [];
-      let lim = 20;
       const q: Query = {
-        where(f, _op, v) {
-          w.push([f, v]);
-          return q;
-        },
-        orderBy() {
-          return q;
-        },
-        limit(n) {
-          lim = n;
-          return q;
-        },
-        onSnapshot(next) {
-          const f = () => {
-            const list = [...docs.entries()]
-              .filter((e): e is [string, Room] => !!e[1] && w.every(([k, v]) => (e[1] as unknown as Patch)[k] === v))
-              .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))
-              .slice(0, lim)
-              .map(([c]) => snap(c));
-            const s: QuerySnap = { docs: list, metadata: { fromCache: false } };
-            next(s);
-          };
-          lists.add(f);
-          setTimeout(f, 1500);
-          return () => lists.delete(f);
+        where: () => q,
+        orderBy: () => q,
+        limit: () => q,
+        onSnapshot(next, err) {
+          const c = new Conn(() => "/lista", () => "?me=" + me);
+          const off = c.listen((m) => {
+            if (m.t !== "list") return;
+            const docs = (m.rooms || []).map((r) => snap(r));
+            next({ docs, metadata: { fromCache: false } } as QuerySnap);
+          });
+          c.onFail.add(() => err?.(new ServerError("conexao", "Sem conexão.")));
+          return off;
         },
       };
       return q;
     },
   };
+}
+
+/** Conecta (a conexão de verdade abre quando a pessoa cria, entra ou olha a lista). */
+export async function connect(): Promise<Backend | null> {
+  const { me, k } = identity();
+  return { db: db(me, k), me, readOnly: false };
 }

@@ -15,11 +15,12 @@ const PUBLIC = [/^\/espera\/?$/, /^\/_astro\//, /^\/bode\.png$/, /^\/logo-impost
 const enc = new TextEncoder();
 const norm = (k: string) => k.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-async function token(secret: string, key: string): Promise<string> {
+async function sign(secret: string, data: string): Promise<string> {
   const k = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = await crypto.subtle.sign("HMAC", k, enc.encode(norm(key)));
+  const sig = await crypto.subtle.sign("HMAC", k, enc.encode(data));
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+const token = (secret: string, key: string) => sign(secret, norm(key));
 
 function validKeys(): string[] {
   return (process.env.IMPOSTOR_KEYS ?? "").split(",").map(norm).filter(Boolean);
@@ -66,15 +67,21 @@ export default async function middleware(request: Request): Promise<Response> {
     });
   }
 
-  // Já aberto para todos?
+  // Aberto para todos, ou liberado por chave (cookie assinado)?
   const openAt = Date.parse(process.env.IMPOSTOR_OPEN_AT || DEFAULT_OPEN_AT);
-  if (Date.now() >= openAt) return next();
-
-  // Portão aberto para quem tem a chave (cookie assinado).
-  const cookie = request.headers.get("cookie")?.match(new RegExp(`(?:^|; )${COOKIE}=([0-9a-f]+)`))?.[1];
-  if (cookie && secret) {
-    for (const k of keys) if ((await token(secret, k)) === cookie) return next();
+  let autorizado = Date.now() >= openAt;
+  if (!autorizado) {
+    const cookie = request.headers.get("cookie")?.match(new RegExp(`(?:^|; )${COOKIE}=([0-9a-f]+)`))?.[1];
+    if (cookie && secret) for (const k of keys) if ((await token(secret, k)) === cookie) autorizado = true;
   }
+
+  // Ingresso para o servidor das salas (Worker): só quem está liberado recebe.
+  if (url.pathname === "/api/ticket") {
+    if (!autorizado || !secret) return json({ ok: false }, 401);
+    const exp = Date.now() + 60 * 60_000;
+    return json({ t: `${exp}.${await sign(secret, "ws:" + exp)}` });
+  }
+  if (autorizado) return next();
 
   if (PUBLIC.some((r) => r.test(url.pathname))) return next();
 

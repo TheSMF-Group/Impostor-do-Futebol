@@ -393,3 +393,30 @@ export function ranking(room: Room): (RankRow & { pos: number })[] {
     return { ...x, pos };
   });
 }
+
+/** Tira alguém da sala. Durante as pistas, a vez dele é pulada e a ordem segue sem ele. */
+export function kickPatch(room: Room, id: string): Patch {
+  const p: Patch = { players: { [id]: null }, updatedAt: now() };
+  const r = room.round;
+  if (!r || (room.status !== "clues" && room.status !== "vote")) return p;
+  const round: Patch = {};
+  if (r.alive) round.alive = r.alive.filter((x) => x !== id);
+  if (room.status === "clues") {
+    const idx = Object.keys(room.clues?.[stageKey(room)] || {}).length;
+    const order = r.order.slice(0, idx).concat(r.order.slice(idx).filter((x) => x !== id));
+    round.order = order;
+    if (order[idx] !== r.order[idx]) p.turnAt = now();
+    if (order.length <= idx) p.status = "vote";
+  }
+  if (room.status === "vote") {
+    // quem tinha votado em quem saiu precisa votar de novo (e o voto de quem saiu deixa de contar)
+    const sk = stageKey(room),
+      vs = room.votes?.[sk] || {},
+      clear: Patch = {};
+    for (const [voter, v] of Object.entries(vs)) if (voter === id || picksOf(v).includes(id)) clear[voter] = null;
+    if (Object.keys(clear).length) p.votes = { [sk]: clear };
+  }
+  if (Object.keys(round).length) p.round = round;
+  return p;
+}
+

@@ -1,0 +1,22 @@
+# Salas do Impostor do Futebol: um Durable Object por sala (autoridade do jogo) e um para a lista de salas abertas.
+name = "impostor-salas"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "impostor-salas.thefenomeno.com", custom_domain = true }]
+
+[[durable_objects.bindings]]
+name = "SALA"
+class_name = "Sala"
+
+[[durable_objects.bindings]]
+name = "LISTA"
+class_name = "Lista"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Sala", "Lista"]
+
+[vars]
+ORIGENS = "https://impostor.thefenomeno.com"
+# IMPOSTOR_SECRET (mesmo valor da Vercel) entra como secret: wrangler secret put IMPOSTOR_SECRET

@@ -163,6 +163,8 @@ export interface DocRef {
   get(): Promise<DocSnap>;
   set(d: Room): Promise<void>;
   update(p: Patch): Promise<void>;
+  /** pedido que o servidor decide (sortear, apurar, chutar, pontuar) */
+  act(a: string, d?: Record<string, unknown>): Promise<void>;
   onSnapshot(next: (s: DocSnap) => void, err?: (e: unknown) => void): () => void;
 }
 
