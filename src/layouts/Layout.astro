@@ -1,8 +1,11 @@
 ---
 import "../styles/global.css";
+import { ADSENSE_CLIENT, OPEN_AT } from "../launch";
 
 interface Props {
   title?: string;
+  /** páginas sem anúncio (espera, animações) */
+  noAds?: boolean;
   description?: string;
   image?: string;
 }
@@ -10,6 +13,7 @@ const SITE = "https://impostor.thefenomeno.com";
 const {
   title = "Impostor do Futebol",
   image = "/og.png",
+  noAds = false,
   description = "Jogo de impostor com temas de futebol. Crie uma sala e jogue com a galera, cada um do próprio celular.",
 } = Astro.props;
 ---
@@ -45,5 +49,17 @@ const {
   </head>
   <body>
     <slot />
+    {!noAds && <script is:inline define:vars={{ OPEN_AT, ADSENSE_CLIENT }}>
+      // AdSense só liga depois da abertura para todos (antes disso o site é restrito a quem tem chave).
+      if (Date.now() >= Date.parse(OPEN_AT)) {
+        var s = document.createElement("script");
+        s.async = true;
+        s.crossOrigin = "anonymous";
+        s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT;
+        document.head.appendChild(s);
+      }
+    </script>}
+    <!-- Cloudflare Web Analytics -->
+    <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "90e84bd07ce948488d5268f9869f5488"}'></script>
   </body>
 </html>

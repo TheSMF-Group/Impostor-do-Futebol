@@ -4,6 +4,7 @@ import { loadMedia, loadThemes, THEMES, THEME_ORDER, themeName } from "./data";
 import { closeReveal, faceHTML, secretHTML, showCard } from "./card";
 import { activeIds, catsOf, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, ranking, roundKey, scorePatch, stageKey, tallyVotes, votesPerPlayer } from "./rules";
 import { sfx } from "./sfx";
+import { keepAwake } from "./wake";
 import { COLORS } from "./state";
 import type { Card, Room } from "./types";
 import { $, dec, deepMerge, esc, ls, now } from "./util";
@@ -64,6 +65,7 @@ export async function enterLocal(exit: () => void): Promise<void> {
   const tag = $("roomTag");
   tag.textContent = "LOCAL";
   tag.hidden = false;
+  keepAwake(true);
   window.scrollTo(0, 0);
   render();
 }
@@ -72,6 +74,7 @@ export function exitLocal(): void {
   if (timer) clearInterval(timer);
   timer = null;
   closeReveal();
+  keepAwake(false);
   L.room = null;
   $("scr-local").hidden = true;
   $("roomTag").hidden = true;
@@ -224,7 +227,11 @@ function passHTML(): string {
     <h2 class="pname">${esc(nick(id))}</h2>
     <p class="note">${reveal ? "Só " + esc(nick(id)) + " olha a tela. Os outros viram o rosto." : "Voto secreto: só " + esc(nick(id)) + " olha a tela."}</p>
     ${prog}
-    <button class="btn btn-red btn-block" type="button" data-l="${reveal ? "card" : "ballot"}" data-id="${esc(id)}">${reveal ? "Sou " + esc(nick(id)) + ", ver minha carta" : "Sou " + esc(nick(id)) + ", votar"}</button>
+    ${
+      reveal
+        ? `<button class="btn btn-red btn-block hold" type="button" data-l="card" data-hold="1" data-id="${esc(id)}"><span class="hold-fill"></span><span class="hold-t">Segure para ver, ${esc(nick(id))}</span></button><p class="note" style="margin:-4px 0 0">Segurar evita abrir a carta sem querer.</p>`
+        : `<button class="btn btn-red btn-block" type="button" data-l="ballot" data-id="${esc(id)}">Sou ${esc(nick(id))}, votar</button>`
+    }
     ${L.recheck ? `<button class="btn btn-ghost btn-block" type="button" data-l="back">Cancelar</button>` : ""}
   </div>`;
 }
@@ -390,7 +397,31 @@ export function wireLocal(): void {
   v.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-l]");
     if (!b || b.tagName === "INPUT") return;
+    // a carta só abre segurando (toque/mouse); teclado (detail 0) abre direto
+    if (b.dataset.hold && (e as MouseEvent).detail !== 0) return;
     void act(b.dataset.l!, b);
+  });
+  // segurar o botão da carta por ~0,5 s
+  let holdT: ReturnType<typeof setTimeout> | null = null;
+  const cancelHold = () => {
+    if (holdT) clearTimeout(holdT);
+    holdT = null;
+    v.querySelector(".hold.holding")?.classList.remove("holding");
+  };
+  v.addEventListener("pointerdown", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>("[data-hold]");
+    if (!b || (e as PointerEvent).button > 0) return;
+    cancelHold();
+    b.classList.add("holding");
+    holdT = setTimeout(() => {
+      holdT = null;
+      b.classList.remove("holding");
+      void act("card", b);
+    }, 500);
+  });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) v.addEventListener(ev, cancelHold);
+  v.addEventListener("contextmenu", (e) => {
+    if ((e.target as HTMLElement).closest("[data-hold]")) e.preventDefault();
   });
   v.addEventListener("change", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLInputElement>('input[data-l="opt"]');

@@ -409,3 +409,8 @@ dialog::backdrop{background:rgba(0,0,0,.75)}
 .lprog i{width:26px;height:6px;border-radius:99px;background:var(--line)}
 .lprog i.done{background:#4cd187}.lprog i.cur{background:var(--accent)}
 #scr-local .col.wide>.zone-side{position:static;max-height:none;overflow:visible}
+
+.hold{position:relative;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.hold .hold-fill{position:absolute;inset:0;background:#000;opacity:.28;transform:scaleX(0);transform-origin:left;transition:transform .15s}
+.hold.holding .hold-fill{transform:scaleX(1);transition:transform .5s linear}
+.hold .hold-t{position:relative}
