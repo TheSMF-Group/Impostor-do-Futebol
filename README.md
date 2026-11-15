@@ -35,7 +35,9 @@ src/
   game/
     app.ts                 telas, ações e início
     rules.ts               regras puras: sorteio da rodada, votos, resultado, chute
-    backend.ts             salas: banco do claude.ai ou MQTT (broker público)
+    backend.ts             salas: WebSocket para o Worker (worker/), com reconexão e pedidos ao servidor
+    local.ts               modo local (um celular, passa-passa)
+    wake.ts                mantém a tela acesa durante a partida
     card.ts                carta, frente com foto/escudo e virada 3D
     moments.ts             avisos em tela cheia (3-2-1, Sua vez!, votação, resultado)
     data.ts                temas, fotos e escudos (carregados de public/data)
