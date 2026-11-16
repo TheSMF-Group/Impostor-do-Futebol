@@ -27,8 +27,21 @@ const EXT_PATH = join(DATA, "fotos-ext.json");
 const EXT: Record<string, string> = {};
 
 /* ---------- cortes pedidos (pouco conhecidos): saem de todos os temas, inclusive dos temas-base ---------- */
-const TIRAR = new Set(["Alessandro Buongiorno", "Ilya Zabarnyi", "Jérémy Jacquet", "Jordan Barrera", "Josip Stanisic", "Kaio Pantaleão", "Kerwin Vargas"]);
-for (const k of ["jbr", "jcl", "len"]) T[k].items = T[k].items.filter((i) => !TIRAR.has(i[1]));
+const TIRAR = new Set([
+  "Alessandro Buongiorno", "Ilya Zabarnyi", "Jérémy Jacquet", "Jordan Barrera", "Josip Stanisic", "Kaio Pantaleão",
+  "Kerwin Vargas", "Aleksandar Stanković", "Alexsander", "Alisson Santos", "Álvaro Recoba", "Anatoliy Trubin",
+  "Ángelo Preciado", "Aurélio Buta", "Bazoumana Touré", "Bruno Gomes", "Bruno Zapelli", "Claudio Caniggia",
+  "Cristian Olivera", "Daniel Svensson", "Enzo Díaz", "Gabriel Batista", "Gabriel Rojas", "Gastón Benavídez",
+  "Giovanni Leoni", "Guido Herrera", "Harvey Barnes", "Josep Martínez", "Juan Portilla",
+  "Julian Ryerson", "Levi Colwill", "Lewis Miley", "Malick Thiaw", "Matteo Ruggeri", "Michele Di Gregorio",
+  "Morten Hjulmand", "Nardoni", "Petar Sučić", "Pio Esposito", "Román Gómez", "Sven Botman",
+  "Trevoh Chalobah",
+]);
+/** homônimos: corta pelo id (João Pedro do Grêmio; o do Chelsea fica) */
+const TIRAR_ID = new Set(["p342024"]);
+for (const k of ["jbr", "jcl", "len"]) T[k].items = T[k].items.filter((i) => !TIRAR.has(i[1]) && !TIRAR_ID.has(i[0]));
+/** tira os cortados das listas curadas */
+const semCortes = (specs: string[]) => specs.filter((x) => !TIRAR.has(x.split(/[=#|]/)[0]));
 
 /* ---------- limpa o que este script gerou antes ---------- */
 const DERIVED = ["jge", "jbs", "jan", "jgr", "jgo", "tge", "tsa"];
@@ -248,10 +261,10 @@ const BR_ATUAIS = [
 ];
 const GOLEIROS_EXTRA = ["Gianluigi Donnarumma|man-city", "Emiliano Martínez|aston-villa", "Marc-André ter Stegen|barcelona", "Mike Maignan|ac-milan", "Yassine Bounou|al-hilal", "David de Gea|fiorentina", "Keylor Navas|pumas"];
 
-const antigos = unico(lista(ANTIGOS, "jan")).filter((i) => !T.len.items.some((l) => l[0] === i[0]));
-const atuais = lista(ATUAIS, "jge");
-const brAtuais = lista(BR_ATUAIS, "jbs");
-const golsExtra = lista(GOLEIROS_EXTRA, "jgo");
+const antigos = unico(lista(semCortes(ANTIGOS), "jan")).filter((i) => !T.len.items.some((l) => l[0] === i[0]));
+const atuais = lista(semCortes(ATUAIS), "jge");
+const brAtuais = lista(semCortes(BR_ATUAIS), "jbs");
+const golsExtra = lista(semCortes(GOLEIROS_EXTRA), "jgo");
 const todosP = unico([...T.jbr.items, ...T.jcl.items, ...atuais, ...brAtuais, ...T.len.items, ...antigos]);
 
 T.jge = { n: "Jogadores em Geral", k: "p", items: todosP };
