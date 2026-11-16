@@ -26,6 +26,10 @@ for (const k of ["jbr", "jcl", "len"]) Object.assign(FOTOS, json(join(DATA, `fot
 const EXT_PATH = join(DATA, "fotos-ext.json");
 const EXT: Record<string, string> = {};
 
+/* ---------- cortes pedidos (pouco conhecidos): saem de todos os temas, inclusive dos temas-base ---------- */
+const TIRAR = new Set(["Alessandro Buongiorno", "Ilya Zabarnyi", "Jérémy Jacquet", "Jordan Barrera", "Josip Stanisic", "Kaio Pantaleão", "Kerwin Vargas"]);
+for (const k of ["jbr", "jcl", "len"]) T[k].items = T[k].items.filter((i) => !TIRAR.has(i[1]));
+
 /* ---------- limpa o que este script gerou antes ---------- */
 const DERIVED = ["jge", "jbs", "jan", "jgr", "jgo", "tge", "tsa"];
 for (const k of DERIVED) delete T[k];
