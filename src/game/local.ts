@@ -1,6 +1,7 @@
 // Modo Local: um celular só, passando de mão em mão. Reaproveita as regras do jogo online
 // (sorteio, votos, resultado, pontos); aqui só muda a navegação, que é toda no mesmo aparelho.
 import { loadMedia, loadThemes, THEMES, THEME_ORDER, themeName } from "./data";
+import { refazSugestao, sugBoxHTML } from "./sugestao";
 import { closeReveal, faceHTML, secretHTML, showCard } from "./card";
 import { activeIds, catsOf, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, ranking, roundKey, scorePatch, stageKey, tallyVotes, votesPerPlayer } from "./rules";
 import { sfx } from "./sfx";
@@ -306,7 +307,7 @@ function resultHTML(): string {
   }${decoy && !o.pending ? `<p style="margin-top:8px;font-size:13px">O infiltrado recebeu: <b>${esc(decoy)}</b></p>` : ""}${r.chaos && !o.pending ? `<p style="margin-top:6px;font-size:13px">${esc(r.chaos)}</p>` : ""}</div>
   ${
     o.pending
-      ? `<div class="panel turn-mine"><h3>${esc(nick(g))}, chute a carta</h3><p class="note" style="margin:-2px 0 10px">Você foi pego. Se acertar o ${r.cat && THEMES[r.cat]?.k === "p" ? "jogador" : "time"}, rouba a vitória. Diga em voz alta ou escreva.</p><div class="myturn"><input class="field" id="lGuess" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-l="guess" data-id="${esc(g)}">Chutar</button></div><button class="btn btn-ghost btn-sm" type="button" data-l="skipguess" data-id="${esc(g)}" style="margin-top:10px">Não quero chutar</button></div>`
+      ? `<div class="panel turn-mine"><h3>${esc(nick(g))}, chute a carta</h3><p class="note" style="margin:-2px 0 10px">Você foi pego. Se acertar o ${r.cat && THEMES[r.cat]?.k === "p" ? "jogador" : "time"}, rouba a vitória. Diga em voz alta ou escreva.</p><div class="myturn"><input class="field" id="lGuess" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-l="guess" data-id="${esc(g)}">Chutar</button></div>${sugBoxHTML("lGuess", r.cat!)}<button class="btn btn-ghost btn-sm" type="button" data-l="skipguess" data-id="${esc(g)}" style="margin-top:10px">Não quero chutar</button></div>`
       : ""
   }
   <div class="panel"><h3>Quem era quem</h3><div class="roles">${r.players
@@ -356,6 +357,7 @@ function render(): void {
     }, 500);
   }
   if (L.phase === "result") document.getElementById("lGuess")?.focus();
+  refazSugestao("lGuess");
 }
 
 /* ---------- eventos ---------- */

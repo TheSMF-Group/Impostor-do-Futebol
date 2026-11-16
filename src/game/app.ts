@@ -1,6 +1,7 @@
 // Telas, ações e início do jogo.
 import { keepAwake } from "./wake";
 import { enterLocal, localActive, wireLocal } from "./local";
+import { refazSugestao, sugBoxHTML, wireSugestoes } from "./sugestao";
 import { connect, ServerError } from "./backend";
 import { cardBarHTML, closeReveal, openReveal, secretHTML } from "./card";
 import { THEME_ORDER, THEMES, loadMedia, loadThemes, themeName } from "./data";
@@ -355,6 +356,7 @@ function render(): void {
   if (gi) {
     gi.value = S.guessDraft;
     if (focused === "guessIn") gi.focus();
+    refazSugestao("guessIn");
   }
   const chi = document.getElementById("chatIn") as HTMLInputElement | null;
   if (chi) {
@@ -741,7 +743,7 @@ function resultHTML(room: Room): string {
   return `${stepperHTML(room, 2)}
   <div class="result ${o.win ? "win" : "lose"}">${o.win ? "" : `<div style="font-family:var(--pixel);color:var(--red);font-size:52px;line-height:.9;text-shadow:3px 3px 0 var(--red-deep)">Impostor</div>`}<h2>${o.title}</h2><p>${o.sub}</p>${r.chaos && r.imps.length && r.imps.length < r.players.length ? `<p>${esc(r.chaos)}</p>` : ""}<p style="margin-top:14px;font-size:13px;opacity:.75">Carta secreta · ${esc(themeName(r.cat))}</p>${o.pending ? `<div class="sw-word">Revelada depois do chute</div>` : secretHTML(r.cat, r.sid ? dec(r.sid) : null, word)}</div>
   ${canGuess && waitFor.length ? `<div class="banner center">Esperando também o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}.</div>` : ""}
-  ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div></div>` : o.pending && waitFor.length ? `<div class="banner center">Esperando o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}…</div>` : ""}
+  ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div>${sugBoxHTML("guessIn", r.cat)}</div>` : o.pending && waitFor.length ? `<div class="banner center">Esperando o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}…</div>` : ""}
   <div class="panel"><h3>Quem era quem</h3><p class="note" style="margin:-4px 0 10px">Toque num nome para ver as dicas que a pessoa deu.</p><div class="roles">${r.players
     .map((id) => {
       const bad = r.imps.includes(id);
@@ -981,6 +983,7 @@ function wire(): void {
   $("createBtn").addEventListener("click", () => void create());
   $("localBtn").addEventListener("click", () => void enterLocal(render));
   wireLocal();
+  wireSugestoes();
   $("joinBtn").addEventListener("click", () => void join());
   $("nick").addEventListener("keydown", (e) => {
     if ((e as KeyboardEvent).key !== "Enter") return;

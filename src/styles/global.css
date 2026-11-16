@@ -150,6 +150,10 @@ footer{border-top:1px solid var(--line);padding-block:24px;color:var(--muted);fo
 .clue.now{outline:1.5px solid var(--accent);background:rgba(255,212,0,.07)}
 .clue.wait .tx{color:var(--muted);font-weight:500;font-size:14px}
 .myturn{display:grid;grid-template-columns:1fr auto;gap:8px}
+/* sugestões do chute: aparecem da 3ª letra em diante */
+.sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sug button{font:inherit;font-size:14px;font-weight:700;color:var(--fg);background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:8px 12px;cursor:pointer}
+.sug button:hover,.sug button:focus-visible{border-color:var(--accent)}
 .votes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .votes.locked .vote{opacity:.55}
 .votes.locked .vote[aria-pressed="true"]{opacity:1}
