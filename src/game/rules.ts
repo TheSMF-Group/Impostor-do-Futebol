@@ -85,7 +85,9 @@ export function newRoundPatch(room: Room): Patch {
   const cat = pick(cs);
   const T = THEMES[cat].items,
     used = room.used || [];
-  let pool = T.filter((i) => !used.includes(cat + ":" + i[0]));
+  // o mesmo jogador ou clube aparece em vários temas: o histórico vale pelo id, não pelo tema
+  const usados = new Set(used.map((u) => u.slice(u.indexOf(":") + 1)));
+  let pool = T.filter((i) => !usados.has(i[0]));
   if (!pool.length) pool = T;
   const it = pick(pool),
     word = it[1];

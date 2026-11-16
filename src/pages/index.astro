@@ -9,7 +9,9 @@ import Layout from "../layouts/Layout.astro";
 </div></header>
 
 <main id="scr-home">
-  <section class="hero"><div class="wrap">
+  <section class="hero">
+    <div class="hero-art"><img src="/img/landing/bodes-1400.webp" srcset="/img/landing/bodes-800.webp 800w, /img/landing/bodes-1400.webp 1400w" sizes="(max-width: 820px) 100vw, 780px" width="1400" height="717" fetchpriority="high" alt="Você é o Impostor: um time de bodes de camisa amarela e um só de camisa listrada. Finja que você sabe o jogador ou clube."></div>
+    <div class="wrap">
     <div>
       <h1>Todo mundo sabe o craque. Menos um.</h1>
       <p class="lead">Crie uma sala, mande o código para a galera e cada um joga do próprio celular. Quem é do elenco vira a carta e vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha e precisa blefar.</p>
@@ -24,7 +26,12 @@ import Layout from "../layouts/Layout.astro";
         <p class="note localnote">Sem sala nem código: passem o celular de mão em mão.</p>
       </div>
     </div>
-    <div class="logo art" id="heroArt" aria-hidden="true"><div class="band"></div><div class="mascote"><img class="bE" src="/img/mascote/braco-esquerdo.webp" alt=""><img class="bD" src="/img/mascote/braco-direito.webp" alt=""><img class="corpo" src="/img/mascote/corpo.webp" alt=""></div></div>
+    <aside class="temas" id="heroArt" aria-label="Temas">
+      <div class="th"><h2>12 temas</h2><span>quase 800 cartas</span></div>
+      <div class="tg"><small>Jogadores</small><ul><li>Em geral</li><li>Futebol brasileiro</li><li>Brasileiros</li><li>Champions League</li><li>Antigos</li><li>Lendas</li><li>Gringos do Brasileirão</li><li>Goleiros</li></ul></div>
+      <div class="tg"><small>Clubes</small><ul><li>Do mundo</li><li>Brasileiros</li><li>Europeus</li><li>Sul-americanos</li></ul></div>
+      <p>Quem cria a sala escolhe os temas da partida.</p>
+    </aside>
   </div></section>
 
   <section class="block"><div class="wrap">
@@ -57,7 +64,7 @@ import Layout from "../layouts/Layout.astro";
     <li>Todo mundo vota em quem acha que é o impostor. Empate não elimina ninguém.</li>
     <li>Se o elenco pegar o impostor, ele ainda tem um chute para adivinhar o jogador ou time secreto e roubar a vitória.</li>
   </ol>
-  <p>Temas: Jogadores do Futebol Brasileiro, Jogadores da Champions League, Times Brasileiros, Times da Europa e Lendas do Futebol.</p><p>Regra de ouro: proibido escrever o nome, o clube do jogador ou parte exata do nome.</p>
+  <p>Temas de jogadores: em geral, do futebol brasileiro, brasileiros, da Champions League, antigos, lendas, gringos do Brasileirão e goleiros. Temas de clubes: do mundo, brasileiros, europeus e sul-americanos.</p><p>Regra de ouro: proibido escrever o nome, o clube do jogador ou parte exata do nome.</p>
   <p>Dica: joguem numa chamada de voz para discutir antes de votar.</p>
   <form method="dialog"><button class="btn btn-red btn-block">Entendi</button></form>
 </div></dialog>

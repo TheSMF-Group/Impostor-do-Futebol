@@ -12,7 +12,7 @@ interface Props {
 const SITE = "https://impostor.thefenomeno.com";
 const {
   title = "Impostor do Futebol",
-  image = "/og.png",
+  image = "/og-impostor.jpg",
   noAds = false,
   description = "Jogo de impostor com temas de futebol. Crie uma sala e jogue com a galera, cada um do próprio celular.",
 } = Astro.props;
@@ -35,7 +35,7 @@ const {
     <meta property="og:image" content={SITE + image} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Mascote do Impostor do Futebol segurando duas máscaras: Todo mundo sabe o craque. Menos um." />
+    <meta property="og:image:alt" content="Você é o Impostor: um time de bodes com a camisa amarela e um só com a camisa listrada. Finja que você sabe o jogador ou clube." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />

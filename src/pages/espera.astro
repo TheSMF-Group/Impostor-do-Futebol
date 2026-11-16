@@ -4,7 +4,7 @@ import Layout from "../layouts/Layout.astro";
 const ABERTURA = "2026-11-17T00:00:00Z";
 ---
 
-<Layout noAds image="/og-prelaunch.png" title="Impostor do Futebol · estreia 16/11 às 21h" description="O Impostor do Futebol estreia dia 16/11 às 21h. Quem tem chave joga antes.">
+<Layout noAds title="Impostor do Futebol · estreia 16/11 às 21h" description="O Impostor do Futebol estreia dia 16/11 às 21h. Quem tem chave joga antes.">
   <main class="gate">
     <div class="glow" aria-hidden="true"></div>
     <div class="lines" aria-hidden="true"></div>
@@ -14,11 +14,7 @@ const ABERTURA = "2026-11-17T00:00:00Z";
     </header>
 
     <section class="gbody">
-      <div class="mascote" aria-hidden="true">
-        <img class="bE" src="/img/mascote/braco-esquerdo.webp" alt="" />
-        <img class="bD" src="/img/mascote/braco-direito.webp" alt="" />
-        <img class="corpo" src="/img/mascote/corpo.webp" alt="" />
-      </div>
+      <img class="gbanner" src="/img/landing/bodes-1400.webp" srcset="/img/landing/bodes-800.webp 800w, /img/landing/bodes-1400.webp 1400w" sizes="(max-width: 900px) 100vw, 900px" width="1400" height="717" fetchpriority="high" alt="Você é o Impostor: um time de bodes de camisa amarela e um só de camisa listrada. Finja que você sabe o jogador ou clube." />
 
       <p class="kick">Estreia · segunda, 16/11 · 21h</p>
       <h1>Todo mundo sabe o craque.<br /><span>Menos um.</span></h1>
@@ -62,7 +58,7 @@ const ABERTURA = "2026-11-17T00:00:00Z";
       <div class="fgrid">
         <div class="f"><h3>Cada um no seu celular</h3><p>Cria a sala, manda o link no grupo e cada um entra do próprio aparelho. Sem baixar nada.</p></div>
         <div class="f"><h3>Modo Local</h3><p>Um celular só, passando de mão em mão. Perfeito pra resenha, churrasco e mesa de bar.</p></div>
-        <div class="f"><h3>Temas de futebol</h3><p>Craques, clubes e seleções. Quanto mais você conhece, mais difícil é blefar.</p></div>
+        <div class="f"><h3>12 temas de futebol</h3><p>Jogadores de hoje, antigos, lendas, goleiros, gringos do Brasileirão e clubes do mundo todo. Quanto mais você conhece, mais difícil é blefar.</p></div>
         <div class="f"><h3>3 a 15 jogadores</h3><p>Do rachão de três ao grupão inteiro. Pontuação e ranking no fim.</p></div>
       </div>
     </section>
@@ -87,9 +83,10 @@ const ABERTURA = "2026-11-17T00:00:00Z";
   .gate .lines{position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 64px,transparent 64px 128px);pointer-events:none;mask-image:linear-gradient(#000,transparent 85%)}
   .gtop .blogo{gap:10px}.gtop .blogo img{height:44px}.gtop .blogo img.lg{height:36px}
   .gtop{position:relative;padding-bottom:14px !important;display:flex;justify-content:center;padding:calc(18px + env(safe-area-inset-top,0px)) 16px 0}
-  .gbody{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 16px 24px;max-width:640px;width:100%;margin:0 auto;gap:14px}
+  .gbody{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 16px 24px;max-width:900px;width:100%;margin:0 auto;gap:14px}
   .gate .mascote{position:relative;width:min(78vw,340px);aspect-ratio:765/545;margin-bottom:-6px;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6));animation:gFloat 4s ease-in-out infinite}
   .gate .mascote img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .gate .gbanner{display:block;width:calc(100% + 24px);max-width:900px;height:auto;margin:0 -12px -10px;-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent)}
   @keyframes gFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
   .gate .kick{font-family:var(--display);color:var(--accent);letter-spacing:.2em;font-size:18px;margin:0}
   .gate h1{font-size:clamp(34px,8vw,56px);line-height:.98;margin:0}

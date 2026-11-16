@@ -11,7 +11,7 @@ export interface Theme {
   items: ThemeItem[];
 }
 
-export type ThemeKey = "jbr" | "jcl" | "tbr" | "teu" | "len";
+export type ThemeKey = "jge" | "jbr" | "jbs" | "jcl" | "jan" | "len" | "jgr" | "jgo" | "tge" | "tbr" | "teu" | "tsa";
 
 export interface Settings {
   imps: number;
