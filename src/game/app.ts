@@ -432,7 +432,12 @@ function enterRoom(c: string, silent = false): void {
 }
 
 /** Sai da sala e volta para o início (com o aviso, se houver). */
+/** já saindo da página da sala: a segunda chamada (servidor avisando a saída que a pessoa pediu) não faz nada */
+let saindo = false;
+
 function exitRoom(aviso = ""): void {
+  if (saindo) return;
+  saindo = true;
   enterSeq++;
   closeReveal();
   S.unsubRoom?.();
@@ -1123,7 +1128,12 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       break;
     case "leave": {
       S.leaveAsk = false;
-      if (room && S.me && room.players?.[S.me]) await send("leave").catch(() => {});
+      // sai primeiro desta página: a resposta do servidor ("não está mais na sala") chega depois e é ignorada
+      const pede = room && S.me && room.players?.[S.me] ? send("leave").catch(() => false) : null;
+      enterSeq++;
+      S.unsubRoom?.();
+      S.unsubRoom = null;
+      if (pede) await pede;
       exitRoom();
       break;
     }
