@@ -110,24 +110,63 @@ function watchList(): void {
         const tnow = Date.now();
         const list = s.docs
           .map((d) => d.data())
-          .filter((r): r is Room => !!r && tnow - (r.updatedAt || 0) < 30 * 60e3 && activeIds(r).length > 0 && !!r.players?.[r.host]);
+          .filter((r): r is Room => !!r && !r.settings?.priv && tnow - (r.updatedAt || 0) < 30 * 60e3 && activeIds(r).length > 0 && !!r.players?.[r.host]);
         $("roomsNote").textContent = list.length ? list.length + (list.length > 1 ? " salas esperando jogadores" : " sala esperando jogadores") : "";
-        $("rooms").innerHTML = list.length
-          ? list
-              .map((r) => {
-                const n = activeIds(r).length;
-                const host = r.players?.[r.host]?.nick || "Anfitrião";
-                const cs = r.settings.cats.map((k) => THEMES[k]?.n).filter(Boolean);
-                return `<button type="button" class="roomrow" data-code="${esc(r.code)}"><span class="code">${esc(r.code)}</span><span class="info"><b>Sala de ${esc(host)}</b><span>${esc(cs.slice(0, 3).join(", "))}${cs.length > 3 ? "…" : ""}</span></span><span class="cnt">${n}/15</span><span class="go">Entrar →</span></button>`;
-              })
-              .join("")
-          : `<div class="empty">Nenhuma sala aberta agora. Crie a sua e mande o código para a galera.</div>`;
+        lastRooms = list;
+        paintRooms();
       },
       () => {
         clearTimeout(t);
         $("roomsNote").textContent = "Não deu para carregar as salas.";
       },
     );
+}
+
+let lastRooms: Room[] | null = null;
+function paintRooms(): void {
+  if (!lastRooms) return;
+  const list = lastRooms;
+  $("rooms").innerHTML = list.length
+          ? list
+              .map((r) => {
+                const n = activeIds(r).length;
+                const host = r.players?.[r.host]?.nick || "Anfitrião";
+                const cs = r.settings.cats.map((k) => THEMES[k]?.n).filter(Boolean);
+                return `<button type="button" class="roomrow" data-code="${esc(r.code)}"><span class="code">${esc(codeTxt(r.code))}</span><span class="info"><b>Sala de ${esc(host)}</b><span>${esc(cs.slice(0, 3).join(", "))}${cs.length > 3 ? "…" : ""}</span></span><span class="cnt">${n}/15</span><span class="go">Entrar →</span></button>`;
+              })
+              .join("")
+          : `<div class="empty">Nenhuma sala aberta agora. Crie a sua e mande o código para a galera.</div>`;
+}
+
+/* ---------- modo streamer: ocultar o código ---------- */
+const EYE = `<svg class="eye" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12 5C6.5 5 2.7 9.3 1.5 12c1.2 2.7 5 7 10.5 7s9.3-4.3 10.5-7C21.3 9.3 17.5 5 12 5zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9zm0-2.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>`;
+const EYE_OFF = `<svg class="eye" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3.3 2 2 3.3l3.2 3.2C3.4 7.9 2.2 9.8 1.5 12c1.2 2.7 5 7 10.5 7 2 0 3.8-.6 5.3-1.4l3.4 3.4 1.3-1.3L3.3 2zM12 16.5A4.5 4.5 0 0 1 7.5 12c0-.8.2-1.5.5-2.1l1.6 1.6a2 2 0 0 0 2.9 2.9l1.6 1.6c-.6.3-1.3.5-2.1.5zM12 5c-1.3 0-2.5.2-3.6.6l2 2c.5-.1 1-.1 1.6-.1a4.5 4.5 0 0 1 4.5 4.5c0 .5-.1 1.1-.2 1.6l3 3c1.5-1.2 2.6-2.6 3.2-4.1C21.3 9.3 17.5 5 12 5z"/></svg>`;
+/** Código como aparece na tela: com o modo streamer ligado, vira pontinhos. */
+const codeTxt = (c: string | null = S.code): string => (S.hideCode ? "••••" : c || "");
+
+function paintHide(): void {
+  const h = S.hideCode;
+  const tag = $("roomTag");
+  tag.innerHTML = `${esc(codeTxt())}${h ? EYE_OFF : EYE}`;
+  tag.title = h ? "Código oculto. Toque para mostrar." : "Toque para ocultar o código (modo streamer).";
+  tag.setAttribute("aria-label", h ? "Código da sala oculto. Mostrar código" : "Código da sala " + (S.code || "") + ". Ocultar código");
+  const hb = $("hideCodesBtn");
+  hb.textContent = h ? "Mostrar códigos" : "Ocultar códigos";
+  hb.setAttribute("aria-pressed", String(h));
+  $("codeIn").classList.toggle("masked", h);
+  const inv = $("inviteNote");
+  if (!inv.hidden && inv.dataset.code) {
+    inv.innerHTML = `Você foi convidado para a sala <b>${esc(codeTxt(inv.dataset.code))}</b>`;
+    $("joinBtn").textContent = h ? "Entrar na sala" : "Entrar na sala " + inv.dataset.code;
+  }
+}
+
+function setHideCode(v: boolean): void {
+  S.hideCode = v;
+  ls.set("idf-hide-code", v ? "1" : null);
+  paintHide();
+  paintRooms();
+  render();
 }
 
 /* ---------- convite por link ---------- */
@@ -146,9 +185,9 @@ function applyInvite(): boolean {
   $("joinBox").classList.add("invited");
   document.body.classList.add("invited");
   const note = $("inviteNote");
-  note.innerHTML = `Você foi convidado para a sala <b>${c}</b>`;
+  note.dataset.code = c;
   note.hidden = false;
-  $("joinBtn").textContent = "Entrar na sala " + c;
+  paintHide();
   history.replaceState(null, "", location.pathname);
   const nick = $<HTMLInputElement>("nick");
   if (nick.value.trim()) void join();
@@ -228,15 +267,14 @@ function enterRoom(c: string, silent = false): void {
   closeReveal();
   ls.set("idf-room", c);
   keepAwake(true);
-  const tag = $("roomTag");
-  tag.textContent = c;
-  tag.hidden = false;
+  $("roomTag").hidden = false;
+  paintHide();
   render();
   let wasIn = false;
   let wt: ReturnType<typeof setTimeout> | null = null;
   const t = setTimeout(() => {
     if (current() && !S.room)
-      $("roomView").innerHTML = `<div class="banner"><b>Conectando à sala ${esc(c)}…</b>Está demorando. Confira a conexão.</div><button class="btn btn-ghost btn-block" type="button" data-act="leave">Voltar ao início</button>`;
+      $("roomView").innerHTML = `<div class="banner"><b>Conectando à sala ${esc(codeTxt(c))}…</b>Está demorando. Confira a conexão.</div><button class="btn btn-ghost btn-block" type="button" data-act="leave">Voltar ao início</button>`;
   }, 10000);
   S.unsubRoom = S.db.doc("rooms/" + c).onSnapshot(
     (s) => {
@@ -257,7 +295,7 @@ function enterRoom(c: string, silent = false): void {
       } else if (!s.metadata.fromCache) {
         if (wasIn) {
           exitRoom();
-          homeErr("Você não está mais na sala " + c + ".");
+          homeErr("Você não está mais na sala " + codeTxt(c) + ".");
           return;
         }
         // entrada ainda não confirmada pelo anfitrião (salas MQTT): espera um pouco
@@ -327,7 +365,7 @@ function render(): void {
   const v = $("roomView");
   const room = S.room;
   if (!room) {
-    v.innerHTML = `<p class="note center">Entrando na sala ${esc(S.code)}…</p>`;
+    v.innerHTML = `<p class="note center">Entrando na sala ${esc(codeTxt())}…</p>`;
     return;
   }
   const focused = (document.activeElement as HTMLElement | null)?.id;
@@ -419,10 +457,11 @@ function lobbyHTML(room: Room): string {
   const dis = h ? "" : "disabled";
   const cats = catsOf(room);
   const elimSet = Math.min(s.imps, mi) >= 2 && s.voteMode === "elim";
-  const sw = (k: "inf" | "chaos" | "hint", t: string, d: string) =>
-    `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-act="opt" data-k="${k}" ${s[k] ? "checked" : ""} ${dis} aria-label="${t}"><span></span></label></div>`;
+  const sw = (k: "inf" | "chaos" | "hint" | "guess" | "priv", t: string, d: string, on = !!s[k]) =>
+    `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-act="opt" data-k="${k}" ${on ? "checked" : ""} ${dis} aria-label="${t}"><span></span></label></div>`;
   return `<div class="kicker center">Sala de espera</div>
-  <div class="codebox"><div><div class="kicker">Código da sala</div><div class="c">${esc(S.code)}</div></div><button class="btn btn-white btn-sm" type="button" data-act="copy">Copiar código</button></div>
+  <div class="codebox${S.hideCode ? " hidden-code" : ""}"><div><div class="kicker">Código da sala</div><div class="c">${esc(codeTxt())}</div></div><div class="cb-btns"><button class="btn btn-ghost btn-sm" type="button" data-act="hideCode" aria-pressed="${S.hideCode}">${S.hideCode ? EYE + " Mostrar" : EYE_OFF + " Ocultar"}</button><button class="btn btn-white btn-sm" type="button" data-act="copy">Copiar código</button></div></div>
+  ${S.hideCode ? `<p class="note center">Modo streamer: o código está oculto nesta tela. Copiar código e link continuam funcionando.</p>` : ""}
   <div class="invite"><button class="btn btn-red" type="button" data-act="copyLink">Copiar link de convite</button><button class="btn btn-wa" type="button" data-act="wa">WhatsApp</button></div>
   <p class="note center" id="copyNote">Mande o link: quem abrir já cai na sala, só falta o apelido.</p>
   <div class="panel"><h3>Jogadores · ${n}/15</h3><div class="players">${ids
@@ -438,8 +477,8 @@ function lobbyHTML(room: Room): string {
       Math.min(s.imps, mi) >= 2
         ? `<div class="row" style="display:block"><div class="t">Tipo de votação</div><div class="d" style="max-width:none;margin-bottom:8px">Vale quando a rodada tem ${Math.min(s.imps, mi)} impostores.</div><div class="modes">${(
             [
-              ["multi", "Votação única", `Todo mundo dá as pistas e, no fim, cada um vota em ${Math.min(s.imps, mi)} suspeitos. Os impostores pegos chutam a carta.`],
-              ["elim", "Eliminação por rodada", "Uma volta de pistas, votação e sai um. Repete até sair todos os impostores. No fim, cada impostor chuta a carta."],
+              ["multi", "Votação única", `Todo mundo dá as pistas e, no fim, cada um vota em ${Math.min(s.imps, mi)} suspeitos.${s.guess !== false ? " Os impostores pegos chutam a carta." : ""}`],
+              ["elim", "Eliminação por rodada", `Uma volta de pistas, votação e sai um. Repete até sair todos os impostores.${s.guess !== false ? " No fim, cada impostor chuta a carta." : ""}`],
             ] as const
           )
             .map(
@@ -456,6 +495,8 @@ function lobbyHTML(room: Room): string {
     ${sw("inf", "Infiltrado", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor.")}
     ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
     ${sw("hint", "Dica do impostor", "Jogadores: o impostor vê o país e a posição. Times: a primeira letra e o tamanho do nome.")}
+    ${sw("guess", "Chute do impostor pego", s.guess !== false ? "Impostor descoberto ainda tem um chute: se acertar a carta, rouba a vitória." : "Desligado: impostor descoberto já perdeu, sem chute.", s.guess !== false)}
+    ${sw("priv", "Sala fora da lista", "Não aparece em “Salas abertas agora”: só entra quem tiver o código ou o link. Bom para live.")}
     <div class="row" style="display:block"><div class="t" style="margin-bottom:8px">Temas</div><div class="chips">${THEME_ORDER.filter((k) => THEMES[k])
       .map(
         (k) =>
@@ -590,7 +631,7 @@ function podiumHTML(room: Room): string {
   const sorted = rows.slice().sort((a, b) => a.x.pos - b.x.pos || b.x.p - a.x.p);
   const h = isHost();
   return `<div class="podium">
-    <div class="pd-title" style="--d:0s"><span class="px">Fim de jogo</span><small>Sala ${esc(S.code)} · ${list.length} jogadores</small></div>
+    <div class="pd-title" style="--d:0s"><span class="px">Fim de jogo</span><small>Sala ${esc(codeTxt())} · ${list.length} jogadores</small></div>
     <div class="pstage">${slot(1, "p2", 3.0)}${slot(0, "p1", 5.0)}${slot(2, "p3", 1.0)}</div>
     <div class="pconf" style="--d:5.4s">${Array.from({ length: 36 }, (_, i) => `<i style="left:${(i * 2.8 + Math.random() * 2).toFixed(1)}%;animation-delay:${(5.4 + Math.random() * 0.8).toFixed(2)}s;animation-duration:${(2 + Math.random() * 1.4).toFixed(2)}s;background:${["#F5C542", "#fff", "#FF2A2A", "#C8CCD4"][i % 4]}"></i>`).join("")}</div>
     <div class="panel board pfull" style="--d:${base - 0.4}s"><h3>Ranking da sala</h3><div class="brows">${sorted
@@ -776,9 +817,9 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       const t = S.code || "";
       try {
         await navigator.clipboard.writeText(t);
-        $("copyNote").textContent = "Código " + t + " copiado. Cole no grupo da galera.";
+        $("copyNote").textContent = (S.hideCode ? "Código" : "Código " + t) + " copiado. Cole no grupo da galera.";
       } catch {
-        $("copyNote").textContent = "Copie o código: " + t;
+        $("copyNote").textContent = S.hideCode ? "Não deu para copiar. Toque em Mostrar para ver o código." : "Copie o código: " + t;
       }
       break;
     }
@@ -788,10 +829,13 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         await navigator.clipboard.writeText(l);
         $("copyNote").textContent = "Link copiado. Cole no grupo da galera.";
       } catch {
-        $("copyNote").textContent = "Copie o link: " + l;
+        $("copyNote").textContent = S.hideCode ? "Não deu para copiar. Toque em Mostrar para ver o código." : "Copie o link: " + l;
       }
       break;
     }
+    case "hideCode":
+      setHideCode(!S.hideCode);
+      break;
     case "wa":
       window.open("https://wa.me/?text=" + encodeURIComponent(`Bora jogar Impostor do Futebol! Entra na sala ${S.code}: ${inviteLink()}`), "_blank", "noopener");
       break;
@@ -1019,6 +1063,10 @@ function wire(): void {
     if (b) void act(b.dataset.act!, b);
   });
   $("homeBtn").addEventListener("click", () => window.scrollTo(0, 0));
+  S.hideCode = ls.get("idf-hide-code") === "1";
+  paintHide();
+  $("roomTag").addEventListener("click", () => setHideCode(!S.hideCode));
+  $("hideCodesBtn").addEventListener("click", () => setHideCode(!S.hideCode));
   unlockOnGesture();
   const muteBtn = $("muteBtn");
   const paintMute = () => {

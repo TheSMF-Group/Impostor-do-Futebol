@@ -303,8 +303,9 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
     return { win: false, title: many ? "Os impostores venceram" : "O impostor venceu", sub: list(innocentOut) + (innocentOut.length > 1 ? " eram do elenco." : " era do elenco.") };
   }
 
-  // quem saiu da sala não chuta
-  const waiting = caught.filter((id) => !G[id] && here(id));
+  // quem saiu da sala não chuta; com o chute desligado, impostor pego já perdeu
+  const canGuess = room.settings?.guess !== false;
+  const waiting = canGuess ? caught.filter((id) => !G[id] && here(id)) : [];
   const escNote = escaped.length ? " " + list(escaped) + (escaped.length > 1 ? " escaparam." : " escapou.") : "";
   if (waiting.length)
     return {
@@ -321,7 +322,8 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
   const right = caught.filter((id) => G[id]?.ok);
   const guessed = caught.filter((id) => G[id]);
   const parts = guessed.map((id) => nick(id) + " chutou " + q(G[id].t) + (G[id].ok ? " e acertou" : " e errou"));
-  const sub = ((parts.length ? parts.join("; ") + "." : "") + escNote).trim();
+  const caughtNote = !canGuess ? list(caught) + (caught.length > 1 ? " foram pegos e não têm chute." : " foi pego e não tem chute.") : "";
+  const sub = ((parts.length ? parts.join("; ") + "." : caughtNote) + escNote).trim();
   if (!right.length && !escaped.length) return { win: true, title: "Vitória do elenco!", sub };
   const winners = right.concat(escaped);
   return {

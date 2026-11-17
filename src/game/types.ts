@@ -24,6 +24,10 @@ export interface Settings {
   voteMode?: VoteMode;
   /** segundos para cada pista (0 ou sem campo = ilimitado) */
   clueTime?: number;
+  /** impostor pego tem um chute para roubar a vitória (sem campo = sim; false = pego já perdeu) */
+  guess?: boolean;
+  /** sala fora da lista pública da página inicial (só entra quem tem o código ou o link) */
+  priv?: boolean;
 }
 
 export type VoteMode = "multi" | "elim";

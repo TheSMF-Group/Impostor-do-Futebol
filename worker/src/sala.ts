@@ -193,7 +193,7 @@ export class Sala {
       const bool = (k: string) => {
         if (k in s) set[k] = !!s[k];
       };
-      ["inf", "chaos", "hint"].forEach(bool);
+      ["inf", "chaos", "hint", "guess", "priv"].forEach(bool);
       const int = (k: string, lo: number, hi: number) => {
         if (k in s) set[k] = Math.max(lo, Math.min(hi, Math.round(Number(s[k]) || lo)));
       };

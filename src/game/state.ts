@@ -27,6 +27,8 @@ export const S = {
   endAsk: false,
   /** no resultado: jogadores com as dicas abertas */
   openClues: [] as string[],
+  /** modo streamer: esconde o código da sala na tela deste aparelho */
+  hideCode: false,
   readOnly: false,
   closing: false,
 };

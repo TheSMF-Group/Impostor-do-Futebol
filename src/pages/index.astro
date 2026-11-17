@@ -5,7 +5,7 @@ import Layout from "../layouts/Layout.astro";
 <Layout>
 <header class="top"><div class="wrap">
   <button class="brand" id="homeBtn" type="button" aria-label="Impostor do Futebol, início"><span class="blogo" aria-hidden="true"><img src="/bode.png" alt=""><img class="lg" src="/logo-impostor.png" alt="Impostor"><span class="bs">DO FUTEBOL</span></span></button>
-  <div style="display:flex;gap:6px;align-items:center"><span class="roomtag" id="roomTag" hidden></span><button class="link" id="muteBtn" type="button" aria-pressed="false">Som: ligado</button><button class="link" id="rulesBtn" type="button">Como jogar</button></div>
+  <div style="display:flex;gap:6px;align-items:center"><button class="roomtag" id="roomTag" type="button" hidden></button><button class="link" id="muteBtn" type="button" aria-pressed="false">Som: ligado</button><button class="link" id="rulesBtn" type="button">Como jogar</button></div>
 </div></header>
 
 <main id="scr-home">
@@ -35,7 +35,7 @@ import Layout from "../layouts/Layout.astro";
   </div></section>
 
   <section class="block"><div class="wrap">
-    <div class="sec-head"><h2>Salas abertas agora</h2><span class="note" id="roomsNote">Procurando salas…</span></div>
+    <div class="sec-head"><h2>Salas abertas agora</h2><span class="note" id="roomsNote">Procurando salas…</span><button class="link hidecodes" id="hideCodesBtn" type="button" aria-pressed="false">Ocultar códigos</button></div>
     <div class="rooms" id="rooms"></div>
   </div></section>
 

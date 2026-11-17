@@ -431,3 +431,13 @@ dialog::backdrop{background:rgba(0,0,0,.75)}
 .hold .hold-fill{position:absolute;inset:0;background:#000;opacity:.28;transform:scaleX(0);transform-origin:left;transition:transform .15s}
 .hold.holding .hold-fill{transform:scaleX(1);transition:transform .5s linear}
 .hold .hold-t{position:relative}
+
+/* modo streamer: código oculto */
+button.roomtag{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font:inherit;font-weight:800;font-size:13px;letter-spacing:.2em}
+button.roomtag[hidden]{display:none}
+.roomtag .eye,.codebox .eye{flex:none;opacity:.8}
+.codebox .cb-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.codebox .cb-btns .btn{display:inline-flex;align-items:center;gap:6px}
+.codebox.hidden-code .c{letter-spacing:.12em;color:var(--muted,#9a8f8f)}
+.code-field.masked{-webkit-text-security:disc}
+.sec-head .hidecodes{margin-left:auto}
