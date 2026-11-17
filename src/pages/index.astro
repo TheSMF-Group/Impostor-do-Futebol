@@ -18,6 +18,10 @@ import Layout from "../layouts/Layout.astro";
       <div class="join" id="joinBox">
         <p class="invite-note" id="inviteNote" hidden></p>
         <input class="field" id="nick" maxlength="18" placeholder="Seu apelido" autocomplete="nickname" aria-label="Seu apelido">
+        <div class="vis" role="group" aria-label="Tipo de sala">
+          <button type="button" class="vis-op" data-vis="pub" aria-pressed="true"><b>Pública</b><span>Aparece na lista de salas abertas</span></button>
+          <button type="button" class="vis-op" data-vis="priv" aria-pressed="false"><b>Privada</b><span>Só entra quem tiver o código ou o link</span></button>
+        </div>
         <button class="btn btn-red btn-block" id="createBtn" type="button">Criar sala</button>
         <div class="two"><input class="field code-field" id="codeIn" maxlength="4" placeholder="CÓDIGO" aria-label="Código da sala" autocomplete="off"><button class="btn btn-white" id="joinBtn" type="button">Entrar</button></div>
         <p class="err" id="homeErr" hidden></p>

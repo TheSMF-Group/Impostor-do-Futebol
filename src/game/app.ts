@@ -208,6 +208,12 @@ function getNick(): string | null {
   return n;
 }
 
+/** Pública ou privada, escolhida na home antes de criar (lembra a última escolha). */
+const privChoice = (): boolean => ls.get("idf-priv") === "1";
+function paintVis(): void {
+  for (const b of document.querySelectorAll<HTMLButtonElement>(".vis-op")) b.setAttribute("aria-pressed", String((b.dataset.vis === "priv") === privChoice()));
+}
+
 async function create(): Promise<void> {
   homeErr("");
   const nick = getNick();
@@ -220,7 +226,9 @@ async function create(): Promise<void> {
     if (!s || !s.exists) break;
     c = genCode();
   }
-  const ok = await write(() => S.db!.doc("rooms/" + c).set(newRoomDoc(c, S.me, nick)));
+  const doc = newRoomDoc(c, S.me, nick);
+  if (privChoice()) doc.settings.priv = true;
+  const ok = await write(() => S.db!.doc("rooms/" + c).set(doc));
   btn.disabled = false;
   if (ok) enterRoom(c);
 }
@@ -457,10 +465,11 @@ function lobbyHTML(room: Room): string {
   const dis = h ? "" : "disabled";
   const cats = catsOf(room);
   const elimSet = Math.min(s.imps, mi) >= 2 && s.voteMode === "elim";
-  const sw = (k: "inf" | "chaos" | "hint" | "guess" | "priv", t: string, d: string, on = !!s[k]) =>
+  const sw = (k: "inf" | "chaos" | "hint" | "guess", t: string, d: string, on = !!s[k]) =>
     `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-act="opt" data-k="${k}" ${on ? "checked" : ""} ${dis} aria-label="${t}"><span></span></label></div>`;
   return `<div class="kicker center">Sala de espera</div>
   <div class="codebox${S.hideCode ? " hidden-code" : ""}"><div><div class="kicker">Código da sala</div><div class="c">${esc(codeTxt())}</div></div><div class="cb-btns"><button class="btn btn-ghost btn-sm" type="button" data-act="hideCode" aria-pressed="${S.hideCode}">${S.hideCode ? EYE + " Mostrar" : EYE_OFF + " Ocultar"}</button><button class="btn btn-white btn-sm" type="button" data-act="copy">Copiar código</button></div></div>
+  <p class="note center vis-tag">${s.priv ? "🔒 Sala <b>privada</b>: não aparece na lista, só entra quem tiver o código ou o link." : "🌐 Sala <b>pública</b>: aparece na lista de salas abertas."}</p>
   ${S.hideCode ? `<p class="note center">Modo streamer: o código está oculto nesta tela. Copiar código e link continuam funcionando.</p>` : ""}
   <div class="invite"><button class="btn btn-red" type="button" data-act="copyLink">Copiar link de convite</button><button class="btn btn-wa" type="button" data-act="wa">WhatsApp</button></div>
   <p class="note center" id="copyNote">Mande o link: quem abrir já cai na sala, só falta o apelido.</p>
@@ -496,7 +505,6 @@ function lobbyHTML(room: Room): string {
     ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
     ${sw("hint", "Dica do impostor", "Jogadores: o impostor vê o país e a posição. Times: a primeira letra e o tamanho do nome.")}
     ${sw("guess", "Chute do impostor pego", s.guess !== false ? "Impostor descoberto ainda tem um chute: se acertar a carta, rouba a vitória." : "Desligado: impostor descoberto já perdeu, sem chute.", s.guess !== false)}
-    ${sw("priv", "Sala fora da lista", "Não aparece em “Salas abertas agora”: só entra quem tiver o código ou o link. Bom para live.")}
     <div class="row" style="display:block"><div class="t" style="margin-bottom:8px">Temas</div><div class="chips">${THEME_ORDER.filter((k) => THEMES[k])
       .map(
         (k) =>
@@ -1066,6 +1074,12 @@ function wire(): void {
   S.hideCode = ls.get("idf-hide-code") === "1";
   paintHide();
   $("roomTag").addEventListener("click", () => setHideCode(!S.hideCode));
+  paintVis();
+  for (const b of document.querySelectorAll<HTMLButtonElement>(".vis-op"))
+    b.addEventListener("click", () => {
+      ls.set("idf-priv", b.dataset.vis === "priv" ? "1" : null);
+      paintVis();
+    });
   $("hideCodesBtn").addEventListener("click", () => setHideCode(!S.hideCode));
   unlockOnGesture();
   const muteBtn = $("muteBtn");

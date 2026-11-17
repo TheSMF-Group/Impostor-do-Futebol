@@ -441,3 +441,11 @@ button.roomtag[hidden]{display:none}
 .codebox.hidden-code .c{letter-spacing:.12em;color:var(--muted,#9a8f8f)}
 .code-field.masked{-webkit-text-security:disc}
 .sec-head .hidecodes{margin-left:auto}
+
+/* home: sala pública ou privada */
+.vis{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vis-op{display:flex;flex-direction:column;gap:2px;text-align:left;background:var(--soft);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--fg);cursor:pointer;font:inherit}
+.vis-op b{font-size:14px}
+.vis-op span{font-size:12px;color:var(--muted);line-height:1.3}
+.vis-op[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.join.invited .vis{display:none}

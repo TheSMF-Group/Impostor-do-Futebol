@@ -177,16 +177,17 @@ class Conn {
 }
 
 const conns = new Map<string, Conn>();
-const creating = new Map<string, string>();
+/** sala sendo criada: apelido do anfitrião e se é privada (fora da lista) */
+const creating = new Map<string, { nick: string; priv: boolean }>();
 
 function db(me: string, k: string): Db {
   const sala = (code: string): Conn => {
     let c = conns.get(code);
     if (!c || c.closed) {
-      const nick = creating.get(code);
+      const cr = creating.get(code);
       c = new Conn(
         () => `/s/${code}`,
-        () => `?me=${me}&k=${k}${nick ? "&create=1&nick=" + encodeURIComponent(nick) : ""}`,
+        () => `?me=${me}&k=${k}${cr ? "&create=1&nick=" + encodeURIComponent(cr.nick) + (cr.priv ? "&priv=1" : "") : ""}`,
       );
       conns.set(code, c);
       c.soltaSeOcioso();
@@ -206,7 +207,7 @@ function db(me: string, k: string): Db {
           return snap(j.exists ? j.room : null);
         },
         async set(room: Room) {
-          creating.set(code, room.players?.[room.host]?.nick || "Jogador");
+          creating.set(code, { nick: room.players?.[room.host]?.nick || "Jogador", priv: !!room.settings?.priv });
           conns.get(code)?.close();
           conns.delete(code);
           await sala(code).open();
