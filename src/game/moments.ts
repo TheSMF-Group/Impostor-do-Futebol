@@ -75,6 +75,7 @@ function next(): void {
 /** Compara o estado anterior com o novo e enfileira os avisos. Não repete nada ao entrar ou recarregar. */
 export function cue(p: Room | null, r: Room, me: string): void {
   if (!p || p.code !== r.code) return;
+  const canGuess = r.settings?.guess !== false;
   // mensagem nova de outra pessoa no chat da votação: só um toque curto
   if (r.status === "vote" && p.rn === r.rn) {
     const k = roundKey(r);
@@ -91,7 +92,7 @@ export function cue(p: Room | null, r: Room, me: string): void {
       st.push({ k: "A galera tirou", b: nk(out), ms: 1400, c: "white", ring: true, sfx: "hit" });
       st.push(
         imps.includes(out)
-          ? { b: "Era impostor!", s: after || (out === me ? "Você tem um chute para roubar a vitória" : "Agora ele pode chutar a carta"), ms: 2100, c: "shake", vib: true, sfx: "impostor" }
+          ? { b: "Era impostor!", s: after || (!canGuess ? (out === me ? "Você foi pego, sem chute" : "Pego! Sem chute desta vez") : out === me ? "Você tem um chute para roubar a vitória" : "Agora ele pode chutar a carta"), ms: 2100, c: "shake", vib: true, sfx: "impostor" }
           : { b: "Era inocente!", s: after || "Ponto para o impostor", ms: 2000, c: "shake", sfx: "innocent" },
       );
     }
@@ -124,7 +125,8 @@ export function cue(p: Room | null, r: Room, me: string): void {
     else if (isElim(r)) {
       reveal(res?.out, imps, res?.end === "caught" ? "Saíram todos os impostores" : " ");
       if (res?.end === "parity") st.push({ b: "Impostores venceram!", s: "O elenco ficou sem maioria", ms: 2200, c: "shake", sfx: "impostor" });
-      else st.push({ b: "Hora dos chutes", s: "Cada impostor tenta adivinhar a carta", ms: 1900, c: "white", sfx: "turn" });
+      else if (canGuess) st.push({ b: "Hora dos chutes", s: "Cada impostor tenta adivinhar a carta", ms: 1900, c: "white", sfx: "turn" });
+      else st.push({ b: "Vitória do elenco!", s: "Todos os impostores foram pegos", ms: 2000, c: "shake", sfx: "win" });
     } else {
       const outs = res?.outs || (res?.out && res.out !== "none" ? [res.out] : []);
       if (!outs.length) reveal(res?.out, imps);

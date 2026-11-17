@@ -5,7 +5,7 @@ import Layout from "../layouts/Layout.astro";
 <Layout>
 <header class="top"><div class="wrap">
   <button class="brand" id="homeBtn" type="button" aria-label="Impostor do Futebol, início"><span class="blogo" aria-hidden="true"><img src="/bode.png" alt=""><img class="lg" src="/logo-impostor.png" alt="Impostor"><span class="bs">DO FUTEBOL</span></span></button>
-  <div style="display:flex;gap:6px;align-items:center"><span class="roomtag" id="roomTag" hidden></span><button class="link" id="muteBtn" type="button" aria-pressed="false">Som: ligado</button><button class="link" id="rulesBtn" type="button">Como jogar</button></div>
+  <div style="display:flex;gap:6px;align-items:center"><button class="roomtag" id="roomTag" type="button" hidden></button><button class="link" id="muteBtn" type="button" aria-pressed="false">Som: ligado</button><button class="link" id="rulesBtn" type="button">Como jogar</button></div>
 </div></header>
 
 <main id="scr-home">
@@ -18,6 +18,10 @@ import Layout from "../layouts/Layout.astro";
       <div class="join" id="joinBox">
         <p class="invite-note" id="inviteNote" hidden></p>
         <input class="field" id="nick" maxlength="18" placeholder="Seu apelido" autocomplete="nickname" aria-label="Seu apelido">
+        <div class="vis" role="group" aria-label="Tipo de sala">
+          <button type="button" class="vis-op" data-vis="pub" aria-pressed="true"><b>Pública</b><span>Aparece na lista de salas abertas</span></button>
+          <button type="button" class="vis-op" data-vis="priv" aria-pressed="false"><b>Privada</b><span>Só entra quem tiver o código ou o link</span></button>
+        </div>
         <button class="btn btn-red btn-block" id="createBtn" type="button">Criar sala</button>
         <div class="two"><input class="field code-field" id="codeIn" maxlength="4" placeholder="CÓDIGO" aria-label="Código da sala" autocomplete="off"><button class="btn btn-white" id="joinBtn" type="button">Entrar</button></div>
         <p class="err" id="homeErr" hidden></p>
@@ -35,7 +39,7 @@ import Layout from "../layouts/Layout.astro";
   </div></section>
 
   <section class="block"><div class="wrap">
-    <div class="sec-head"><h2>Salas abertas agora</h2><span class="note" id="roomsNote">Procurando salas…</span></div>
+    <div class="sec-head"><h2>Salas abertas agora</h2><span class="note" id="roomsNote">Procurando salas…</span><button class="link hidecodes" id="hideCodesBtn" type="button" aria-pressed="false">Ocultar códigos</button></div>
     <div class="rooms" id="rooms"></div>
   </div></section>
 

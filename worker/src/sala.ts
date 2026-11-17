@@ -109,6 +109,8 @@ export class Sala {
       if (!nick) return new Response("apelido", { status: 400 });
       this.keys = {};
       this.room = newRoomDoc(code, me, nick);
+      // pública ou privada é escolhida na criação (privada não aparece na lista da home)
+      if (url.searchParams.get("priv") === "1") this.room.settings.priv = true;
       this.naLista = false;
     } else if (!this.room || this.room.status === "closed") return aviso("none");
 
@@ -239,7 +241,7 @@ export class Sala {
       const bool = (k: string) => {
         if (k in s) set[k] = !!s[k];
       };
-      ["inf", "chaos", "hint"].forEach(bool);
+      ["inf", "chaos", "hint", "guess"].forEach(bool);
       const int = (k: string, lo: number, hi: number) => {
         if (k in s) set[k] = Math.max(lo, Math.min(hi, Math.round(Number(s[k]) || lo)));
       };

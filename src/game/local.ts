@@ -180,8 +180,8 @@ function setupHTML(): string {
   const n = L.names.map((x) => x.trim()).filter(Boolean).length;
   const mi = maxImps(Math.max(3, n));
   const cats = catsOf(room);
-  const sw = (k: "inf" | "chaos" | "hint", t: string, d: string) =>
-    `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-l="opt" data-k="${k}" ${s[k] ? "checked" : ""} aria-label="${t}"><span></span></label></div>`;
+  const sw = (k: "inf" | "chaos" | "hint" | "guess", t: string, d: string, on = !!s[k]) =>
+    `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-l="opt" data-k="${k}" ${on ? "checked" : ""} aria-label="${t}"><span></span></label></div>`;
   const times: [number, string][] = [[120, "2 min"], [180, "3 min"], [300, "5 min"], [0, "Sem tempo"]];
   return `<div class="zone-top"><div class="kicker center">Modo local · um celular</div></div>
   <div class="zone-main">
@@ -209,6 +209,7 @@ function setupHTML(): string {
     ${sw("inf", "Infiltrado", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor.")}
     ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
     ${sw("hint", "Dica do impostor", "Jogadores: o impostor vê o país e a posição. Times: a primeira letra e o tamanho do nome.")}
+    ${sw("guess", "Chute do impostor pego", s.guess !== false ? "Impostor descoberto ainda tem um chute: se acertar a carta, rouba a vitória." : "Desligado: impostor descoberto já perdeu, sem chute.", s.guess !== false)}
     <div class="row" style="display:block"><div class="t" style="margin-bottom:8px">Temas</div><div class="chips">${THEME_ORDER.filter((k) => THEMES[k])
       .map((k) => `<button type="button" class="chip" data-l="cat" data-k="${k}" aria-pressed="${cats.includes(k)}">${esc(THEMES[k].n)}<small>${THEMES[k].items.length}</small></button>`)
       .join("")}</div></div>

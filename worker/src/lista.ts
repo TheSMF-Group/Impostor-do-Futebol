@@ -17,7 +17,8 @@ export class Lista {
 
   lista(): Room[] {
     const t = Date.now();
-    for (const [c, r] of this.salas) if (t - r.updatedAt > VALIDADE || r.status !== "lobby") this.salas.delete(c);
+    // sala privada (modo streamer) não entra na lista: o código só chega a quem recebeu o convite
+    for (const [c, r] of this.salas) if (t - r.updatedAt > VALIDADE || r.status !== "lobby" || r.settings?.priv) this.salas.delete(c);
     return [...this.salas.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 20);
   }
 
@@ -25,7 +26,7 @@ export class Lista {
     const url = new URL(req.url);
     if (req.method === "POST" && url.pathname === "/atualiza") {
       const { code, room } = (await req.json()) as { code: string; room: Room | null };
-      if (room && room.status === "lobby") this.salas.set(code, room);
+      if (room && room.status === "lobby" && !room.settings?.priv) this.salas.set(code, room);
       else this.salas.delete(code);
       await this.ctx.storage.put("salas", [...this.salas]);
       this.difunde();
