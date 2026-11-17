@@ -1,7 +1,7 @@
 // O que cada jogador pode ver da sala. O servidor guarda tudo; quem está de fora recebe só o que já é público.
-import type { Room } from "../../src/game/types";
-import { ordemDeFala } from "../../src/game/chat";
-import { jclone } from "../../src/game/util";
+import type { Room } from "../../src/game/types.ts";
+import { ordemDeFala } from "../../src/game/chat.ts";
+import { jclone } from "../../src/game/util.ts";
 
 const MASK = "?";
 

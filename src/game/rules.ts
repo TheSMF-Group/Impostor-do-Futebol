@@ -1,11 +1,12 @@
 // Regras puras da partida (sem DOM): sorteio da rodada, votos, resultado e chute.
-import { THEME_ORDER, THEMES, isPlayerTheme } from "./data";
-import { caosLigado } from "./caos";
-import { gerarDica } from "./dica";
+import { THEME_ORDER, THEMES, isPlayerTheme } from "./data.ts";
+import { caosLigado } from "./caos.ts";
+import { gerarDica } from "./dica.ts";
 
 export { caosLigado };
-import type { Card, Guess, Out, Patch, RankRow, Room, VoteResult } from "./types";
-import { enc, esc, norm, now, pick, shuffle } from "./util";
+import type { Card, Guess, Out, Patch, RankRow, Room, VoteResult } from "./types.ts";
+import { chatKey } from "./chat.ts";
+import { enc, esc, norm, now, pick, shuffle } from "./util.ts";
 
 export const activeIds = (r: Pick<Room, "players">): string[] =>
   Object.entries(r.players || {})
@@ -355,8 +356,9 @@ export function roundPoints(room: Room, force = false): Record<string, number> |
   const o = outcome(room, (id) => id);
   if (o.pending && !force) return null;
   const pts: Record<string, number> = {};
+  // quem saiu da sala (inclusive por inatividade) não pontua; o placar guarda só o que já tinha
   const imps = r.imps,
-    crew = r.players.filter((id) => !imps.includes(id));
+    crew = r.players.filter((id) => !imps.includes(id) && !!room.players?.[id]);
   if (imps.length === 0) {
     if (room.result?.[roundKey(room)]?.out === "none") for (const id of crew) pts[id] = PTS_CREW;
     return pts;
@@ -403,6 +405,57 @@ export function ranking(room: Room): (RankRow & { pos: number })[] {
     }
     return { ...x, pos };
   });
+}
+
+/** Mínimo de jogadores para uma rodada continuar. */
+export const MIN_JOGADORES = 3;
+
+/**
+ * Tira da sala quem ficou ausente (desconectado, estourou o tempo da vez ou não votou no prazo).
+ * Diferente de kickPatch, os votos dos OUTROS não são zerados: os votos no ausente simplesmente deixam de contar
+ * (tallyVotes só apura entre os presentes) e a votação segue sem travar. O voto do próprio ausente some.
+ * Se o ausente era impostor, a rodada acaba como se ele tivesse sido pego (o fluxo de sempre: quem saiu não chuta).
+ * Com menos de MIN_JOGADORES a sala volta ao lobby. O anfitrião ausente passa o posto.
+ * Devolve um patch para o deepMerge; o aviso para os outros vai no chat.
+ */
+export function ausentePatch(room: Room, id: string, online: (id: string) => boolean = () => true): Patch {
+  const nick = room.players?.[id]?.nick || "Jogador";
+  const p = kickPatch(room, id);
+  const rest = activeIds(room).filter((x) => x !== id);
+  const r = room.round;
+  const sk = r ? stageKey(room) : "";
+  if (p.votes) p.votes = { [sk]: { [id]: null } };
+  if (room.host === id && rest.length) p.host = rest.find(online) || rest[0];
+  let status = (p.status as Room["status"] | undefined) || room.status;
+  let aviso = `${nick} saiu por inatividade.`;
+  const jogando = !!r && (status === "clues" || status === "vote");
+  if (jogando && rest.length < MIN_JOGADORES) {
+    status = "lobby";
+    p.status = "lobby";
+    p.voteAt = null;
+    aviso += " A sala voltou para a espera: restaram menos de 3 jogadores.";
+  } else if (jogando && r!.imps.includes(id) && r!.imps.length < r!.players.length) {
+    const restantes = r!.imps.filter((x) => x !== id && rest.includes(x));
+    if (isElim(room)) {
+      const outs: Out[] = (r!.outs || []).concat([{ u: id, imp: true, st: r!.stage || 1 }]);
+      p.round = { ...(p.round as object), outs };
+      if (!restantes.length) {
+        status = "result";
+        p.status = "result";
+        p.voteAt = null;
+        p.result = { [roundKey(room)]: { out: id, outs: outs.map((o) => o.u), tally: {}, end: "caught" } };
+      }
+    } else if (!restantes.length) {
+      status = "result";
+      p.status = "result";
+      p.voteAt = null;
+      p.result = { [roundKey(room)]: { out: id, outs: [id], tally: {} } };
+    }
+    if (status === "result") aviso += " Era o impostor: a rodada acabou.";
+  }
+  const key = chatKey({ status, rn: room.rn });
+  p.chat = { [key]: { ["sys-" + now().toString(36) + "-" + id]: { u: "sys", sys: 1, t: aviso, at: now() } } };
+  return p;
 }
 
 /** Tira alguém da sala. Durante as pistas, a vez dele é pulada e a ordem segue sem ele. */

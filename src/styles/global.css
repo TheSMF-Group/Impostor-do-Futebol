@@ -525,3 +525,27 @@ body{padding-bottom:var(--ad-b,0px)}
 .fala li b{min-width:62px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
 .fala li.mudo{color:var(--muted);font-weight:600}
 .fala li.mudo b{color:var(--muted)}
+/* chat compacto: sempre na primeira tela. Altura FIXA da lista (rola por dentro; mensagem nova não empurra o resto) */
+.panel.chat.compact{padding:10px 12px}
+.panel.chat.compact h3{margin:0 0 6px;font-size:13px}
+.panel.chat.compact .chat-list{height:clamp(84px,17vh,150px);max-height:none}
+.panel.chat.compact .myturn{margin-top:8px !important}
+.panel.chat.compact .field,.panel.chat.compact .btn{min-height:40px}
+@media (max-height:700px){.panel.chat.compact .chat-list{height:clamp(64px,13vh,96px)}}
+@media (min-width:900px){.col.wide .panel.chat.compact .chat-list{height:clamp(96px,14vh,150px);max-height:none}}
+.msg.sys{max-width:100%;align-self:stretch}
+@media (max-height:700px){
+  .col{gap:8px}
+  .cardbar{padding:9px 12px}
+  .cardbar .txt span{font-size:12px;line-height:1.25}
+  .banner.turn-wait{padding:8px 12px}
+  .ttimer{padding:8px 14px}
+  .panel.chat.compact .chat-list .note{margin:2px 0 !important;font-size:12px}
+  .panel.chat.compact .chat-list{height:clamp(56px,10vh,72px)}
+}
+@media (max-height:700px){
+  .vis-tag{display:none}
+  #copyNote{font-size:12px;margin:0}
+  .codebox{padding:10px 14px}
+  .invite .btn{min-height:44px}
+}

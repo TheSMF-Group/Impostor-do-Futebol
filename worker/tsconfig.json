@@ -1,4 +1,4 @@
 {
-  "compilerOptions": { "target": "ES2022", "module": "ES2022", "moduleResolution": "bundler", "strict": true, "noEmit": true, "skipLibCheck": true, "resolveJsonModule": true, "lib": ["ES2022", "DOM"], "types": [] },
+  "compilerOptions": { "target": "ES2022", "module": "ES2022", "moduleResolution": "bundler", "strict": true, "allowImportingTsExtensions": true, "noEmit": true, "skipLibCheck": true, "resolveJsonModule": true, "lib": ["ES2022", "DOM"], "types": [] },
   "include": ["src"]
 }

@@ -5,6 +5,7 @@ import { setThemes, THEMES } from "../../src/game/data";
 import {
   activeIds,
   catsOf,
+  ausentePatch,
   elimPatch,
   guessOk,
   guessesOf,
@@ -325,6 +326,8 @@ export class Sala {
           if (!t) nao("vazio", "Escreva uma pista.");
         } else {
           soHost();
+          // tempo da vez esgotado = ausente: sai da sala (o servidor segura se não sobrar ninguém online)
+          if (a === "timeout" && vez && this.remover(vez)) break;
           t = a === "skip" ? "(pulou a vez)" : "(tempo esgotado)";
         }
         room.clues ||= {};
@@ -393,6 +396,19 @@ export class Sala {
     }
   }
 
+  /**
+   * Tira da sala quem ficou ausente (tira o voto dele, passa o posto de anfitrião e avisa no chat).
+   * Não tira ninguém se não sobraria nenhum jogador conectado: a sala espera, como antes.
+   */
+  remover(id: string): boolean {
+    const room = this.room!;
+    if (!room.players?.[id]) return false;
+    if (!activeIds(room).some((x) => x !== id && this.online(x))) return false;
+    deepMerge(room as never, ausentePatch(room, id, (x) => this.online(x)));
+    this.fora.delete(id);
+    return true;
+  }
+
   fechaVotacao(): void {
     const room = this.room!;
     deepMerge(room as never, isElim(room) ? elimPatch(room) : { status: "result", result: { [roundKey(room)]: tallyVotes(room) }, updatedAt: now() });
@@ -402,6 +418,8 @@ export class Sala {
   assentar(): void {
     const room = this.room!;
     if (room.status === "closed") return;
+    // ausente (sem conexão há AUSENTE_S) sai da sala na hora
+    for (const id of activeIds(room)) if (this.ausente(id)) this.remover(id);
     this.trocaAnfitriao();
     for (let guarda = 0; guarda < 8; guarda++) {
       // vez de pista de quem está ausente: passa sozinha
@@ -428,6 +446,9 @@ export class Sala {
         const alguem = vivos.some((id) => voteDone(picksOf(vs[id]), k));
         const prazo = now() >= room.voteAt + VOTE_TIME * 1000;
         if ((todos && (alguem || vivos.every((id) => this.ausente(id)))) || prazo) {
+          // no prazo, quem ainda não votou estava ausente: sai antes da apuração (sem voto e sem receber voto)
+          if (prazo && alguem) for (const id of vivos) if (room.players?.[id] && !voteDone(picksOf(vs[id]), k)) this.remover(id);
+          if (room.status !== "vote") continue;
           this.fechaVotacao();
           room.voteAt = null;
           continue;
@@ -518,7 +539,7 @@ export class Sala {
       const r = room.round!;
       const sk = stageKey(room);
       const i = Object.keys(room.clues?.[sk] || {}).length;
-      if (r.order[i]) {
+      if (r.order[i] && !this.remover(r.order[i])) {
         room.clues[sk] ||= {};
         room.clues[sk][i] = { u: r.order[i], t: "(tempo esgotado)" };
         room.turnAt = now();

@@ -532,11 +532,12 @@ const CHAT_MAX_PER_PLAYER = 30;
 let chatStick = true;
 /** até quando o botão fica travado depois de enviar (só para o jogador ver; quem manda é o servidor) */
 let chatLivreEm = 0;
+let chatLivreChave = "";
 let chatTimer = 0;
 
 /** Ms que faltam para poder enviar: vale o maior entre o relógio local do último envio e a última mensagem na sala. */
 function chatFalta(room: Room): number {
-  return Math.max(0, chatLivreEm - Date.now(), chatEspera(room.chat?.[chatKey(room)], S.me, Date.now()));
+  return Math.max(0, chatLivreChave === chatKey(room) ? chatLivreEm - Date.now() : 0, chatEspera(room.chat?.[chatKey(room)], S.me, Date.now()));
 }
 
 /** Atualiza só o botão enquanto o intervalo corre, sem refazer a tela (não tira o foco do campo). */
@@ -568,12 +569,13 @@ function chatHTML(room: Room, open: boolean): string {
   const rows = list.length
     ? list
         .map(([, m]) => {
+          if (m.sys) return `<div class="msg sys"><p class="note center" style="margin:2px 0;width:100%">${esc(m.t)}</p></div>`;
           const me = m.u === S.me;
           return `<div class="msg${me ? " me" : ""}">${me ? "" : dot(m.u)}<div class="bub"><b style="color:${colorOf(m.u)}">${esc(me ? "Você" : nickOf(m.u))}</b><span>${esc(m.t)}</span></div></div>`;
         })
         .join("")
     : `<p class="note center" style="margin:8px 0">${open ? (room.status === "lobby" ? "Ninguém falou nada ainda. Aproveite para combinar a partida." : "Ninguém falou nada ainda. Explique sua pista ou acuse alguém.") : "Ninguém conversou nesta rodada."}</p>`;
-  return `<div class="panel chat" data-zone="side"><h3>${open ? "Conversa" : "Conversa da rodada"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
+  return `<div class="panel chat${open ? " compact" : ""}"${open ? "" : ' data-zone="side"'}><h3>${open ? "Conversa" : "Conversa da rodada"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
     canSend
       ? mine >= CHAT_MAX_PER_PLAYER
         ? `<p class="note" style="margin-top:8px">Você chegou ao limite de ${CHAT_MAX_PER_PLAYER} mensagens nesta rodada.</p>`
@@ -613,6 +615,7 @@ function lobbyHTML(room: Room): string {
   ${S.hideCode ? `<p class="note center">Modo streamer: o código está oculto nesta tela. Copiar código e link continuam funcionando.</p>` : ""}
   <div class="invite"><button class="btn btn-red" type="button" data-act="copyLink">Copiar link de convite</button><button class="btn btn-wa" type="button" data-act="wa">WhatsApp</button></div>
   <p class="note center" id="copyNote">Mande o link: quem abrir já cai na sala, só falta o apelido.</p>
+  ${chatHTML(room, true)}
   <div class="panel"><h3>Jogadores · ${n}/15</h3><div class="players">${ids
     .map(
       (id) =>
@@ -652,7 +655,6 @@ function lobbyHTML(room: Room): string {
       .join("")}</div></div>
   </div>
   ${scoreboardHTML(room)}
-  ${chatHTML(room, true)}
   ${h ? `<button class="btn btn-red btn-block" type="button" data-act="start" ${n < 3 || !cats.length ? "disabled" : ""}>${n < 3 ? "Esperando jogadores…" : !cats.length ? "Escolha um tema" : "Começar partida"}</button>` : `<div class="banner center">Esperando ${esc(nickOf(room.host))} começar a partida.</div>`}
   ${h && Object.keys(room.scores || {}).length ? endRoomHTML() : ""}
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
@@ -693,8 +695,8 @@ function cluesHTML(room: Room): string {
       : `<div class="banner turn-wait">${dot(turn)}<span>Vez de <b style="display:inline">${esc(nickOf(turn))}</b>. Fiquem de olho nas pistas.</span></div>`
   }
   ${timerHTML(room, mine)}
-  <div class="panel" data-zone="side"><h3>Pistas</h3><div class="clues">${rows}</div></div>
   ${chatHTML(room, true)}
+  <div class="panel" data-zone="side"><h3>Pistas</h3><div class="clues">${rows}</div></div>
   ${manageHTML(room)}
   ${isHost() ? `<div data-zone="side" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}
   ${leaveHTML()}`;
@@ -872,6 +874,7 @@ function voteHTML(room: Room): string {
   <h2 class="big center">${title}</h2>
   ${meter}
   ${room.voteAt ? `<div class="ttimer vtimer" data-end="${room.voteAt + VOTE_TIME * 1000}" role="timer"><span>A votação fecha em</span><b>${fmtLeft(room.voteAt + VOTE_TIME * 1000 - Date.now())}</b></div>` : ""}
+  ${chatHTML(room, true)}
   ${cardBarHTML()}
   ${elimHTML(room)}
   <div class="votes${locked ? " locked" : ""}">${ids
@@ -883,7 +886,6 @@ function voteHTML(room: Room): string {
   <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my.includes("none")}" ${locked ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">${isElim(room) ? "Ninguém sai agora" : "Ninguém é impostor"}</span></button></div>
   ${action}
   ${falaHTML(room)}
-  ${chatHTML(room, true)}
   ${manageHTML(room)}
   ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}
   ${leaveHTML()}`;
@@ -945,10 +947,13 @@ function resultHTML(room: Room): string {
   ${canGuess && waitFor.length ? `<div class="banner center">Esperando também o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}.</div>` : ""}
   ${canGuess ? `<div class="panel"><h3>Seu chute</h3><div class="myturn"><input class="field" id="guessIn" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-act="guess">Chutar</button></div>${sugBoxHTML("guessIn", r.cat)}</div>` : o.pending && waitFor.length ? `<div class="banner center">Esperando o chute de ${waitFor.map((id) => esc(nickOf(id))).join(", ")}…</div>` : ""}
   <div class="panel"><h3>Quem era quem</h3><p class="note" style="margin:-4px 0 10px">Toque num nome para ver as dicas que a pessoa deu.</p><div class="roles">${r.players
+    // quem saiu da sala (inclusive por inatividade) não entra na apuração; só o impostor que saiu continua na revelação
+    .filter((id) => !!room.players?.[id] || r.imps.includes(id))
     .map((id) => {
       const bad = r.imps.includes(id);
-      const v = tally[id] || 0;
-      const info = isElim(room) ? (outAt[id] ? "saiu na etapa " + outAt[id] : "ficou até o fim") : v + " voto" + (v === 1 ? "" : "s");
+      const gone = !room.players?.[id];
+      const v = gone ? 0 : tally[id] || 0;
+      const info = gone ? "saiu da sala" : isElim(room) ? (outAt[id] ? "saiu na etapa " + outAt[id] : "ficou até o fim") : v + " voto" + (v === 1 ? "" : "s");
       const gs = G[id] ? ` · chutou “${esc(G[id].t)}” ${G[id].ok ? "✓" : "✗"}` : "";
       const open = S.openClues.includes(id);
       return `<button type="button" class="role${bad ? " bad" : ""}" data-act="clues" data-id="${esc(id)}" aria-expanded="${open}"><span><span class="chev">${open ? "▾" : "▸"}</span> ${esc(nickOf(id))} <span class="note" style="font-weight:500">· ${info}${gs}</span></span><em>${bad ? (decoy ? "Infiltrado · " + esc(decoy) : "Impostor") : "Elenco"}</em></button>${open ? playerCluesHTML(room, id) : ""}`;
@@ -1080,6 +1085,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       S.chatDraft = "";
       chatStick = true;
       chatLivreEm = Date.now() + CHAT_SLOW_MS;
+      chatLivreChave = chatKey(room!);
       chatTick();
       if (!(await upd({ chat: { [chatKey(room!)]: { [id]: { u: S.me, t, at: now() } } }, updatedAt: now() }))) {
         S.chatDraft = t;

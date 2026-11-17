@@ -83,7 +83,9 @@ export interface Clue {
 
 /** Mensagem do chat da votação. */
 export interface ChatMsg {
+  /** id de quem escreveu; "sys" = aviso do servidor (ex.: saiu por inatividade) */
   u: string;
+  sys?: 1;
   t: string;
   at: number;
 }
