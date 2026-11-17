@@ -1,0 +1,23 @@
+---
+// Modo local: um celular só, passando de mão em mão.
+import Layout from "../layouts/Layout.astro";
+import Topo from "../components/Topo.astro";
+import Regras from "../components/Regras.astro";
+import Anuncio from "../components/Anuncio.astro";
+---
+
+<Layout
+  title="Modo local · Impostor do Futebol"
+  description="Impostor do Futebol num celular só: coloque os nomes, passe o aparelho de mão em mão e descubra quem é o impostor. Sem sala e sem código."
+  page="local"
+>
+<Topo jogo />
+<main id="scr-local"><div class="wrap stage"><div class="col" id="localView"></div></div></main>
+<div class="wrap"><Anuncio class="adgame" /></div>
+<Regras />
+</Layout>
+
+<script>
+  import { startLocal } from "../game/app";
+  startLocal();
+</script>

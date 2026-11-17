@@ -1,0 +1,20 @@
+---
+import { TEMAS } from "../temas-paginas";
+---
+
+<footer><div class="wrap rodape">
+  <nav aria-label="Temas">
+    <b>Temas</b>
+    <ul>{TEMAS.map((t) => <li><a href={`/temas/${t.slug}`}>{t.curto}</a></li>)}</ul>
+  </nav>
+  <nav aria-label="Site">
+    <b>Jogo</b>
+    <ul>
+      <li><a href="/">Criar sala</a></li>
+      <li><a href="/como-jogar">Como jogar</a></li>
+      <li><a href="/local">Modo local</a></li>
+      <li><a href="/temas">Todos os temas</a></li>
+    </ul>
+  </nav>
+  <p>Impostor do Futebol · cada jogador entra pelo próprio celular com o link do jogo.</p>
+</div></footer>

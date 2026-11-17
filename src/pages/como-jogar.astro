@@ -1,0 +1,102 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Topo from "../components/Topo.astro";
+import Anuncio from "../components/Anuncio.astro";
+import Rodape from "../components/Rodape.astro";
+import { TEMAS } from "../temas-paginas";
+---
+
+<Layout
+  title="Como jogar Impostor do Futebol: regras, pontos e dicas"
+  description="Regras completas do Impostor do Futebol: como criar a sala, dar pistas, votar, pontuar e blefar. Com os modos Infiltrado, Rodada caótica e eliminação."
+>
+<Topo />
+<main class="doc"><div class="wrap">
+  <nav class="trilha" aria-label="Você está em"><a href="/">Início</a> / <span>Como jogar</span></nav>
+  <h1>Como jogar Impostor do Futebol</h1>
+  <p class="lead">Todo mundo recebe o mesmo jogador ou clube secreto, menos o impostor. Cada um dá uma pista de uma palavra, o grupo vota em quem parece não saber a carta e o impostor tenta sobreviver no blefe.</p>
+  <div class="docacts"><a class="btn btn-red" href="/?inicio">Criar sala grátis</a><a class="btn btn-ghost" href="/local">Jogar num celular só</a></div>
+
+  <section>
+    <h2>Do que precisa</h2>
+    <ul>
+      <li><b>De 3 a 15 jogadores.</b> Com 4 ou mais fica melhor.</li>
+      <li><b>Um celular para cada um</b>, todos com o link do jogo. Não precisa instalar nada nem criar conta.</li>
+      <li><b>Ou um celular só</b>, no <a href="/local">modo local</a>: vocês passam o aparelho de mão em mão.</li>
+      <li>Se o grupo não estiver junto, joguem numa chamada de voz para discutir antes de votar.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Passo a passo de uma rodada</h2>
+    <ol class="passos">
+      <li><b>Criar a sala.</b> Uma pessoa escolhe o apelido e toca em Criar sala. Aparece um código de 4 letras e um link de convite para mandar no grupo.</li>
+      <li><b>Entrar.</b> Quem abre o link cai direto na sala e só escolhe o apelido. Também dá para digitar o código na página inicial.</li>
+      <li><b>Escolher os temas.</b> O anfitrião marca os temas da partida: jogadores, clubes ou os dois. A carta de cada rodada sai de um deles.</li>
+      <li><b>Virar a carta.</b> Cada um toca em Virar carta no próprio celular. O elenco vê o jogador ou clube secreto, com foto ou escudo. O impostor vê a tela vermelha e o nome do tema.</li>
+      <li><b>Dar as pistas.</b> Na ordem sorteada, cada um escreve uma palavra que tenha a ver com a carta. Não vale o nome, o clube do jogador nem parte exata do nome.</li>
+      <li><b>Votar.</b> Todo mundo vota em quem acha que é o impostor. Durante a votação dá para conversar no chat da sala. Empate não elimina ninguém.</li>
+      <li><b>O chute do impostor.</b> Se o impostor for pego, ainda tem uma chance: digitar quem era a carta. Se acertar, rouba a vitória.</li>
+    </ol>
+  </section>
+
+  <Anuncio />
+
+  <section>
+    <h2>Pontos</h2>
+    <ul>
+      <li><b>Impostor que vence: +3.</b> Vence quem não é pego na votação ou quem é pego mas acerta o chute.</li>
+      <li><b>Elenco que vence: +1 para cada um.</b> O elenco vence quando pega o impostor e ele erra o chute.</li>
+      <li>O placar da sala vai somando rodada a rodada. No fim, o anfitrião encerra a sala e aparece o pódio.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Opções da sala</h2>
+    <dl class="opcoes">
+      <dt>Impostores</dt><dd>Um impostor com 3 ou 4 jogadores, até dois com 5 ou 6 e até três com 7 ou mais.</dd>
+      <dt>Votação única ou eliminação</dt><dd>Com 2 ou mais impostores, o anfitrião escolhe. Na votação única, todos dão as pistas e cada um vota em vários suspeitos de uma vez. Na eliminação, sai um por volta até não sobrar impostor.</dd>
+      <dt>Tempo para dar dica</dt><dd>2 minutos, 1 minuto, 30 segundos ou sem limite. Acabou o tempo, a vez passa para o próximo.</dd>
+      <dt>Voltas de pistas</dt><dd>De 1 a 3 pistas por pessoa antes da votação. Mais voltas ajudam o elenco e apertam o impostor.</dd>
+      <dt>Infiltrado</dt><dd>O impostor não vê a tela vermelha: recebe outro jogador ou clube do mesmo tema e nem sabe que é o impostor.</dd>
+      <dt>Rodada caótica</dt><dd>Uma rodada em cada seis vira bagunça: pode não ter impostor nenhum, todo mundo ser impostor ou ter um a mais.</dd>
+      <dt>Dica do impostor</dt><dd>Em tema de jogadores, o impostor vê o país e a posição. Em tema de clubes, a primeira letra e o tamanho do nome.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Dicas para o elenco</h2>
+    <ul>
+      <li>Fuja da pista óbvia. Se a carta é um atacante, “gol” não prova que você sabe quem é.</li>
+      <li>A melhor pista é a que quem sabe entende e quem não sabe acha vaga: um apelido, um lance, um ex-clube.</li>
+      <li>Preste atenção em quem fala por último e repete a ideia dos outros. Pode ser o impostor seguindo a onda.</li>
+    </ul>
+    <h2>Dicas para o impostor</h2>
+    <ul>
+      <li>Não tenha pressa. Se a sua vez é no fim, você já ouviu várias pistas e pode chutar a carta antes de falar.</li>
+      <li>Dê uma pista que caberia em vários jogadores do tema, mas sem parecer genérica demais.</li>
+      <li>Se for pego, use todas as pistas do elenco para acertar o chute. Ainda dá para virar.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Os 12 temas</h2>
+    <p>Cada tema tem a sua página com a lista de cartas que podem cair.</p>
+    <ul class="temalinks">{TEMAS.map((t) => <li><a href={`/temas/${t.slug}`}>{t.curto}</a></li>)}</ul>
+  </section>
+
+  <section>
+    <h2>Perguntas frequentes</h2>
+    <dl class="faq">
+      <dt>Precisa pagar ou criar conta?</dt><dd>Não. É só abrir o site, escolher um apelido e criar a sala.</dd>
+      <dt>Funciona no celular?</dt><dd>Sim, foi feito para celular. Cada um joga do seu, e no computador também funciona.</dd>
+      <dt>Dá para jogar à distância?</dt><dd>Dá. Mandem o link de convite no grupo e joguem numa chamada de voz para discutir as pistas.</dd>
+      <dt>Alguém caiu da partida. E agora?</dt><dd>Quem abrir o link de novo volta para a sala. O anfitrião também pode tirar quem ficou offline, e a rodada segue sem a pessoa.</dd>
+    </dl>
+  </section>
+
+  <div class="docacts"><a class="btn btn-red" href="/?inicio">Criar sala agora</a></div>
+</div></main>
+<div class="wrap"><Anuncio /></div>
+<Rodape />
+</Layout>

@@ -1,0 +1,71 @@
+---
+// Uma página por tema: o que é, uma rodada de exemplo e todas as cartas que podem cair.
+import Layout from "../../layouts/Layout.astro";
+import Topo from "../../components/Topo.astro";
+import Anuncio from "../../components/Anuncio.astro";
+import Rodape from "../../components/Rodape.astro";
+import { TEMAS, type TemaPagina } from "../../temas-paginas";
+import dados from "../../../public/data/temas.json";
+import type { Theme, ThemeItem } from "../../game/types";
+
+export function getStaticPaths() {
+  return TEMAS.map((t) => ({ params: { slug: t.slug }, props: { t } }));
+}
+
+const { t } = Astro.props as { t: TemaPagina };
+const tema = (dados as unknown as { themes: Record<string, Theme> }).themes[t.k];
+const jogadores = tema.k === "p";
+
+// jogadores agrupados pelo clube; clubes agrupados pela liga ou país
+const grupos = new Map<string, ThemeItem[]>();
+for (const it of tema.items) {
+  const g = it[3] || "Outros";
+  if (!grupos.has(g)) grupos.set(g, []);
+  grupos.get(g)!.push(it);
+}
+const ord = (a: string, b: string) => a.localeCompare(b, "pt");
+const lista = [...grupos.entries()].sort((a, b) => b[1].length - a[1].length || ord(a[0], b[0]));
+const outros = TEMAS.filter((x) => x.k !== t.k);
+const n = tema.items.length;
+---
+
+<Layout title={`${t.titulo} · ${n} cartas`} description={t.descricao}>
+<Topo />
+<main class="doc"><div class="wrap">
+  <nav class="trilha" aria-label="Você está em"><a href="/">Início</a> / <a href="/temas">Temas</a> / <span>{t.curto}</span></nav>
+  <h1>{t.titulo}</h1>
+  {t.intro.map((p, i) => <p class={i === 0 ? "lead" : ""}>{p}</p>)}
+  <div class="docacts"><a class="btn btn-red" href={`/?inicio&tema=${t.k}`}>Criar sala com esse tema</a><a class="btn btn-ghost" href="/local">Jogar num celular só</a></div>
+  <p class="note">A sala já abre só com “{tema.n}” marcado. Na sala de espera dá para juntar outros temas.</p>
+
+  <section class="exemplo">
+    <h2>Uma rodada de exemplo</h2>
+    <p>A carta secreta é <b>{t.exemplo.carta}</b>. O elenco escreveu:</p>
+    <ul class="pistas">{t.exemplo.pistas.map((p) => <li>{p}</li>)}<li class="imp">{t.exemplo.impostor}</li></ul>
+    <p>A última pista foi a do impostor. {t.exemplo.porque}</p>
+  </section>
+
+  <Anuncio />
+
+  <section>
+    <h2>As {n} cartas do tema</h2>
+    <p class="note">{jogadores ? "Agrupadas pelo clube atual de cada jogador." : "Agrupadas pela liga ou pelo país."} A lista muda conforme a gente atualiza os elencos.</p>
+    <div class="cartas">
+      {lista.map(([g, its]) => (
+        <div class="cgrupo">
+          <h3>{g} <small>{its.length}</small></h3>
+          <ul>{its.slice().sort((a, b) => ord(a[1], b[1])).map((it) => <li>{it[1]}{jogadores && it[5] ? <small>{it[5]}</small> : null}</li>)}</ul>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section>
+    <h2>Outros temas</h2>
+    <ul class="temalinks">{outros.map((x) => <li><a href={`/temas/${x.slug}`}>{x.curto}</a></li>)}</ul>
+  </section>
+  <div class="docacts"><a class="btn btn-red" href="/?inicio">Criar sala agora</a><a class="btn btn-ghost" href="/como-jogar">Como jogar</a></div>
+</div></main>
+<div class="wrap"><Anuncio /></div>
+<Rodape />
+</Layout>

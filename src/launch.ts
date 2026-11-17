@@ -2,3 +2,5 @@
 // Mantenha igual a DEFAULT_OPEN_AT do middleware.ts (IMPOSTOR_OPEN_AT na Vercel manda lá, não aqui).
 export const OPEN_AT = "2026-11-17T00:00:00Z";
 export const ADSENSE_CLIENT = "ca-pub-1104557423745111";
+// Bloco de anúncio fixo (unidade "Impostor · bloco" no AdSense). Vazio = os blocos não aparecem.
+export const AD_SLOT = "9980695049";

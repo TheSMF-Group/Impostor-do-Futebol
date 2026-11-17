@@ -1,0 +1,42 @@
+---
+// Página da sala: /sala/ABCD (a Vercel reescreve para cá; o código sai do endereço).
+// Quem já está na sala entra direto; quem chegou pelo convite vê só o apelido e o botão de entrar.
+import Layout from "../layouts/Layout.astro";
+import Topo from "../components/Topo.astro";
+import Regras from "../components/Regras.astro";
+import Anuncio from "../components/Anuncio.astro";
+---
+
+<Layout
+  title="Entra na sala · Impostor do Futebol"
+  description="Você foi chamado para uma partida de Impostor do Futebol. Toque para entrar na sala, escolha um apelido e jogue do seu celular."
+  noindex
+  path="/sala"
+  page="sala"
+>
+<Topo jogo />
+
+<main id="scr-join" hidden><div class="wrap stage"><div class="col">
+  <div class="kicker center">Convite</div>
+  <h1 class="big center" id="joinTitle">Sala</h1>
+  <div class="join" id="joinBox" style="max-width:none">
+    <p class="invite-note" id="inviteNote" hidden></p>
+    <input class="field" id="nick" maxlength="18" placeholder="Seu apelido" autocomplete="nickname" aria-label="Seu apelido">
+    <input type="hidden" id="codeIn">
+    <button class="btn btn-red btn-block" id="joinBtn" type="button">Entrar na sala</button>
+    <p class="err" id="homeErr" hidden></p>
+    <a class="btn btn-ghost btn-block" href="/?inicio">Criar outra sala</a>
+  </div>
+</div></div></main>
+
+<main id="scr-room"><div class="wrap stage"><div class="col" id="roomView"><p class="note center">Abrindo a sala…</p></div></div></main>
+
+<div class="wrap"><Anuncio class="adgame" /></div>
+
+<Regras />
+</Layout>
+
+<script>
+  import { startSala } from "../game/app";
+  startSala();
+</script>
