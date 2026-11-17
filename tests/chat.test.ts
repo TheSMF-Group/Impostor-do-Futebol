@@ -44,3 +44,36 @@ test("ordem de fala: empate de relógio desempata de forma estável", () => {
   const chat = { "b-1": m("b", 500), "a-1": m("a", 500) };
   assert.deepEqual(ordemDeFala(chat, ["a", "b"]).falaram, ["a", "b"]);
 });
+
+/* ---------- chat do lobby ---------- */
+import { chatKey, podeFalar } from "../src/game/chat.ts";
+
+const sala = (status: string) => ({ status, rn: 2, players: { a: {}, b: {} }, round: { players: ["a", "b"], alive: ["a"] } });
+
+test("lobby: mensagem aceita para quem está na sala; fora dela não; na partida só quem está vivo", () => {
+  assert.equal(podeFalar(sala("lobby"), "a"), true);
+  assert.equal(podeFalar(sala("lobby"), "b"), true); // no lobby vale a sala, não a rodada anterior
+  assert.equal(podeFalar(sala("lobby"), "z"), false);
+  assert.equal(podeFalar(sala("clues"), "a"), true);
+  assert.equal(podeFalar(sala("vote"), "b"), false); // eliminado
+  assert.equal(podeFalar(sala("result"), "a"), false);
+});
+
+test("lobby: o chat tem chave própria, então o limite por jogador e o slowmode do lobby não invadem a partida", () => {
+  assert.equal(chatKey(sala("lobby")), "lobby");
+  assert.equal(chatKey(sala("clues")), "r2");
+  assert.equal(chatKey(sala("result")), "r2");
+});
+
+test("lobby: slowmode de 3 s vale igual no lobby", () => {
+  const chat = { "a-1": m("a", 50_000) };
+  assert.equal(chatEspera(chat, "a", 51_000), 2000);
+  assert.equal(chatEspera(chat, "a", 53_000), 0);
+});
+
+test("ordem de fala ignora o lobby: só entra o chat da rodada", () => {
+  const room = { chat: { lobby: { "c-1": m("c", 1), "b-1": m("b", 2) }, r2: { "a-1": m("a", 100) } } as Record<string, Record<string, ChatMsg>> };
+  const rodada = ordemDeFala(room.chat[chatKey({ status: "vote", rn: 2 })], ["a", "b", "c"]);
+  assert.deepEqual(rodada.falaram, ["a"]);
+  assert.deepEqual(rodada.calados, ["b", "c"]);
+});

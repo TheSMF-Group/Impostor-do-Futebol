@@ -142,7 +142,8 @@ export function newRoundPatch(room: Room): Patch {
     turnAt: now(),
     used: used.concat(cat + ":" + it[0]).slice(-150),
     // apaga o chat da rodada anterior para a sala não crescer
-    ...(room.rn ? { chat: { ["r" + room.rn]: null } } : {}),
+    // e o chat do lobby (a conversa da sala de espera não entra na partida)
+    chat: { lobby: null, ...(room.rn ? { ["r" + room.rn]: null } : {}) },
     round: {
       cat,
       secret: enc(word),

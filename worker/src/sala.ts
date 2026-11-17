@@ -26,7 +26,7 @@ import {
   AUSENTE_S,
 } from "../../src/game/rules";
 import type { Patch, Room } from "../../src/game/types";
-import { CHAT_SLOW_MS, chatEspera } from "../../src/game/chat";
+import { CHAT_SLOW_MS, chatEspera, chatKey, podeFalar } from "../../src/game/chat";
 import { dec, deepMerge, now } from "../../src/game/util";
 import { resumoPublico, vistaPara } from "./vista";
 
@@ -258,8 +258,8 @@ export class Sala {
       if ("cats" in s && Array.isArray(s.cats)) set.cats = (s.cats as unknown[]).filter((c): c is string => typeof c === "string" && !!THEMES[c]);
     }
     if (p.chat) {
-      if ((room.status !== "clues" && room.status !== "vote") || !liveIds(room).includes(me)) nao("proibido", "Só quem está jogando pode escrever agora.");
-      const rk = roundKey(room);
+      if (!podeFalar(room, me)) nao("proibido", "Só quem está na sala pode escrever agora.");
+      const rk = chatKey(room);
       const msgs = (p.chat as Record<string, Record<string, { t?: unknown }>>)[rk];
       if (!msgs) nao("proibido", "Mensagem inválida.");
       room.chat ||= {};

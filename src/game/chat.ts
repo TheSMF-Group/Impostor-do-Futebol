@@ -3,6 +3,20 @@ import type { ChatMsg } from "./types.ts";
 
 type Msgs = Record<string, ChatMsg | null> | null | undefined;
 
+/** Chave do chat: o do lobby é separado do da rodada ("lobby" x "r3"), então o limite por jogador e a ordem de fala nunca se misturam. */
+export const chatKey = (r: { status: string; rn: number }): string => (r.status === "lobby" ? "lobby" : "r" + r.rn);
+
+/** Quem pode escrever: no lobby, qualquer jogador da sala; nas pistas e na votação, quem ainda está no jogo; no resto, ninguém. */
+export function podeFalar(
+  room: { status: string; players?: Record<string, unknown>; round?: { alive?: string[] | null; players: string[] } | null },
+  me: string,
+): boolean {
+  if (!room.players?.[me]) return false;
+  if (room.status === "lobby") return true;
+  if (room.status !== "clues" && room.status !== "vote") return false;
+  return (room.round?.alive || room.round?.players || []).includes(me);
+}
+
 /** Intervalo mínimo entre duas mensagens do mesmo jogador (slowmode). */
 export const CHAT_SLOW_MS = 3000;
 

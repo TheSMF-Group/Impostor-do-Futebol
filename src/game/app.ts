@@ -27,7 +27,7 @@ import {
   VOTE_TIME,
 } from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
-import { CHAT_SLOW_MS, chatEspera, ordemDeFala } from "./chat";
+import { CHAT_SLOW_MS, chatEspera, chatKey, ordemDeFala, podeFalar } from "./chat";
 import type { ChatMsg, Patch, Room } from "./types";
 import { $, dec, esc, ls, now } from "./util";
 
@@ -536,7 +536,7 @@ let chatTimer = 0;
 
 /** Ms que faltam para poder enviar: vale o maior entre o relógio local do último envio e a última mensagem na sala. */
 function chatFalta(room: Room): number {
-  return Math.max(0, chatLivreEm - Date.now(), chatEspera(room.chat?.[roundKey(room)], S.me, Date.now()));
+  return Math.max(0, chatLivreEm - Date.now(), chatEspera(room.chat?.[chatKey(room)], S.me, Date.now()));
 }
 
 /** Atualiza só o botão enquanto o intervalo corre, sem refazer a tela (não tira o foco do campo). */
@@ -553,14 +553,17 @@ function chatTick(): void {
 let chatScroll = 0;
 
 function chatMsgs(room: Room): [string, ChatMsg][] {
-  return Object.entries(room.chat?.[roundKey(room)] || {})
+  return Object.entries(room.chat?.[chatKey(room)] || {})
     .filter((e): e is [string, ChatMsg] => !!e[1] && typeof e[1].t === "string")
     .sort((a, b) => a[1].at - b[1].at);
 }
 
+/** Quem pode escrever: no lobby, qualquer jogador da sala; na partida, quem ainda está no jogo. */
+const chatMembro = (room: Room): boolean => podeFalar(room, S.me);
+
 function chatHTML(room: Room, open: boolean): string {
   const list = chatMsgs(room);
-  const canSend = open && liveIds(room).includes(S.me);
+  const canSend = open && chatMembro(room);
   const mine = list.filter(([, m]) => m.u === S.me).length;
   const rows = list.length
     ? list
@@ -569,12 +572,12 @@ function chatHTML(room: Room, open: boolean): string {
           return `<div class="msg${me ? " me" : ""}">${me ? "" : dot(m.u)}<div class="bub"><b style="color:${colorOf(m.u)}">${esc(me ? "Você" : nickOf(m.u))}</b><span>${esc(m.t)}</span></div></div>`;
         })
         .join("")
-    : `<p class="note center" style="margin:8px 0">${open ? "Ninguém falou nada ainda. Explique sua pista ou acuse alguém." : "Ninguém conversou nesta votação."}</p>`;
-  return `<div class="panel chat" data-zone="side"><h3>${open ? "Conversa" : "Conversa da votação"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
+    : `<p class="note center" style="margin:8px 0">${open ? (room.status === "lobby" ? "Ninguém falou nada ainda. Aproveite para combinar a partida." : "Ninguém falou nada ainda. Explique sua pista ou acuse alguém.") : "Ninguém conversou nesta rodada."}</p>`;
+  return `<div class="panel chat" data-zone="side"><h3>${open ? "Conversa" : "Conversa da rodada"}</h3><div class="chat-list" id="chatList" aria-live="polite">${rows}</div>${
     canSend
       ? mine >= CHAT_MAX_PER_PLAYER
         ? `<p class="note" style="margin-top:8px">Você chegou ao limite de ${CHAT_MAX_PER_PLAYER} mensagens nesta rodada.</p>`
-        : `<div class="myturn" style="margin-top:10px"><input class="field" id="chatIn" maxlength="${CHAT_MAX_LEN}" placeholder="Explique sua pista…" autocomplete="off" aria-label="Mensagem para a sala"><button class="btn btn-red" type="button" data-act="chat" ${chatFalta(room) ? "disabled" : ""}>${chatFalta(room) ? `Aguarde ${Math.ceil(chatFalta(room) / 1000)}s` : "Enviar"}</button></div>`
+        : `<div class="myturn" style="margin-top:10px"><input class="field" id="chatIn" maxlength="${CHAT_MAX_LEN}" placeholder="${room.status === "lobby" ? "Escreva para a sala…" : "Explique sua pista…"}" autocomplete="off" aria-label="Mensagem para a sala"><button class="btn btn-red" type="button" data-act="chat" ${chatFalta(room) ? "disabled" : ""}>${chatFalta(room) ? `Aguarde ${Math.ceil(chatFalta(room) / 1000)}s` : "Enviar"}</button></div>`
       : open
         ? `<p class="note" style="margin-top:8px">Só quem ainda está no jogo pode escrever.</p>`
         : ""
@@ -649,6 +652,7 @@ function lobbyHTML(room: Room): string {
       .join("")}</div></div>
   </div>
   ${scoreboardHTML(room)}
+  ${chatHTML(room, true)}
   ${h ? `<button class="btn btn-red btn-block" type="button" data-act="start" ${n < 3 || !cats.length ? "disabled" : ""}>${n < 3 ? "Esperando jogadores…" : !cats.length ? "Escolha um tema" : "Começar partida"}</button>` : `<div class="banner center">Esperando ${esc(nickOf(room.host))} começar a partida.</div>`}
   ${h && Object.keys(room.scores || {}).length ? endRoomHTML() : ""}
   <button class="btn btn-ghost btn-block" type="button" data-act="leave">Sair da sala</button>`;
@@ -1069,7 +1073,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         roomErr("Escreva uma mensagem antes de enviar.");
         return;
       }
-      if ((room!.status !== "vote" && room!.status !== "clues") || !liveIds(room!).includes(S.me)) return;
+      if (!["lobby", "clues", "vote"].includes(room!.status) || !chatMembro(room!)) return;
       if (chatFalta(room!)) return;
       if (chatMsgs(room!).filter(([, m]) => m.u === S.me).length >= CHAT_MAX_PER_PLAYER) return;
       const id = S.me + "-" + Date.now().toString(36);
@@ -1077,7 +1081,7 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       chatStick = true;
       chatLivreEm = Date.now() + CHAT_SLOW_MS;
       chatTick();
-      if (!(await upd({ chat: { [rk()]: { [id]: { u: S.me, t, at: now() } } }, updatedAt: now() }))) {
+      if (!(await upd({ chat: { [chatKey(room!)]: { [id]: { u: S.me, t, at: now() } } }, updatedAt: now() }))) {
         S.chatDraft = t;
         chatLivreEm = 0;
       }
