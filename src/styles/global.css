@@ -431,3 +431,7 @@ dialog::backdrop{background:rgba(0,0,0,.75)}
 .hold .hold-fill{position:absolute;inset:0;background:#000;opacity:.28;transform:scaleX(0);transform-origin:left;transition:transform .15s}
 .hold.holding .hold-fill{transform:scaleX(1);transition:transform .5s linear}
 .hold .hold-t{position:relative}
+
+/* relógio da votação e saída no meio da partida */
+.vtimer{margin-top:-4px}
+.leaveask{border-color:var(--red)}

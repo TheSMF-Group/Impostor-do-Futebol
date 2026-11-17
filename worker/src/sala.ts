@@ -22,6 +22,8 @@ import {
   stageKey,
   tallyVotes,
   votesPerPlayer,
+  VOTE_TIME,
+  AUSENTE_S,
 } from "../../src/game/rules";
 import type { Patch, Room } from "../../src/game/types";
 import { dec, deepMerge, now } from "../../src/game/util";
@@ -60,14 +62,17 @@ export class Sala {
   /** limite de mensagens por conexão (em memória) */
   taxa = new Map<WebSocket, { t: number; n: number }>();
   naLista = false;
+  /** jogador → desde quando está sem nenhuma conexão (guardado no storage: o objeto pode hibernar e perder a memória) */
+  fora = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     this.ctx = ctx;
     this.env = env;
     this.ctx.blockConcurrencyWhile(async () => {
-      const [r, k] = await Promise.all([this.ctx.storage.get("room"), this.ctx.storage.get("keys")]);
+      const [r, k, f] = await Promise.all([this.ctx.storage.get("room"), this.ctx.storage.get("keys"), this.ctx.storage.get("fora")]);
       this.room = (r as Room | undefined) ?? null;
       this.keys = (k as Record<string, string> | undefined) ?? {};
+      this.fora = new Map(Object.entries((f as Record<string, number> | undefined) ?? {}));
     });
   }
 
@@ -113,6 +118,8 @@ export class Sala {
     this.keys[me] = h;
 
     this.ctx.acceptWebSocket(srv, [me]);
+    srv.serializeAttachment({ c: crypto.randomUUID() });
+    this.fora.delete(me);
     await this.persistir();
     this.enviar(srv, me);
     if (criar) {
@@ -160,8 +167,47 @@ export class Sala {
     }
   }
 
-  webSocketClose(ws: WebSocket): void {
+  async webSocketClose(ws: WebSocket): Promise<void> {
     this.taxa.delete(ws);
+    const me = this.ctx.getTags(ws)[0];
+    try {
+      ws.close(1000, "tchau");
+    } catch {
+      /* já fechada */
+    }
+    if (me && me !== "x" && !this.online(me, ws)) {
+      this.fora.set(me, now());
+      await this.ctx.storage.put("fora", Object.fromEntries(this.fora));
+      await this.agendar();
+    }
+  }
+
+  async webSocketError(ws: WebSocket): Promise<void> {
+    await this.webSocketClose(ws);
+  }
+
+  /* ---------- presença ---------- */
+  /** Tem alguma conexão (fora a que está fechando, comparada pela etiqueta de cada conexão). */
+  online(id: string, fechando?: WebSocket): boolean {
+    // WebSocket do Workers tem anexo por conexão (deserializeAttachment), que o tipo do DOM não conhece
+    const etq = (w: WebSocket) => ((w as unknown as { deserializeAttachment(): { c?: string } | null }).deserializeAttachment())?.c;
+    const sai = fechando ? etq(fechando) : undefined;
+    return this.ctx.getWebSockets(id).some((w: WebSocket) => !fechando || etq(w) !== sai);
+  }
+
+  /** Sem conexão há AUSENTE_S segundos: não segura voto nem vez. Sem registro, começa a contar agora. */
+  ausente(id: string): boolean {
+    if (this.online(id)) return false;
+    if (!this.fora.has(id)) this.fora.set(id, now());
+    return now() - this.fora.get(id)! >= AUSENTE_S * 1000;
+  }
+
+  /** Anfitrião sumiu: passa o posto para alguém conectado (senão ninguém pula vez nem começa rodada). */
+  trocaAnfitriao(): void {
+    const room = this.room!;
+    if (!this.ausente(room.host) && room.players?.[room.host]) return;
+    const novo = activeIds(room).find((id) => this.online(id));
+    if (novo && novo !== room.host) room.host = novo;
   }
 
   /* ---------- escritas do cliente ---------- */
@@ -326,8 +372,8 @@ export class Sala {
       case "leave": {
         if (!room.players?.[me]) break;
         const rest = activeIds(room).filter((id) => id !== me);
-        room.players[me] = null;
-        if (room.host === me && rest.length) room.host = rest[0];
+        mescla(kickPatch(room, me));
+        if (room.host === me && rest.length) room.host = rest.find((id) => this.online(id)) || rest[0];
         if (!rest.length) room.status = "closed";
         break;
       }
@@ -344,13 +390,35 @@ export class Sala {
   /** Depois de cada mudança: fecha a votação quando todos votaram e soma os pontos quando a rodada acaba de vez. */
   assentar(): void {
     const room = this.room!;
-    for (let guarda = 0; guarda < 6; guarda++) {
+    if (room.status === "closed") return;
+    this.trocaAnfitriao();
+    for (let guarda = 0; guarda < 8; guarda++) {
+      // vez de pista de quem está ausente: passa sozinha
+      if (room.status === "clues" && room.round) {
+        const sk = stageKey(room);
+        const i = Object.keys(room.clues?.[sk] || {}).length;
+        const vez = room.round.order[i];
+        if (vez && this.ausente(vez)) {
+          room.clues ||= {};
+          room.clues[sk] ||= {};
+          room.clues[sk][i] = { u: vez, t: "(ausente)" };
+          room.turnAt = now();
+          if (i === room.round.order.length - 1) room.status = "vote";
+          continue;
+        }
+      }
       if (room.status === "vote" && room.round) {
+        room.voteAt ||= now();
         const vs = room.votes?.[stageKey(room)] || {};
         const k = votesPerPlayer(room);
-        const todos = liveIds(room).every((id) => voteDone(picksOf(vs[id]), k) || !room.players?.[id]);
-        if (todos) {
+        const vivos = liveIds(room);
+        // quem caiu da sala não trava: fecha quando todos os conectados votaram (e pelo menos um votou)
+        const todos = vivos.every((id) => voteDone(picksOf(vs[id]), k) || !room.players?.[id] || this.ausente(id));
+        const alguem = vivos.some((id) => voteDone(picksOf(vs[id]), k));
+        const prazo = now() >= room.voteAt + VOTE_TIME * 1000;
+        if ((todos && (alguem || vivos.every((id) => this.ausente(id)))) || prazo) {
           this.fechaVotacao();
+          room.voteAt = null;
           continue;
         }
       }
@@ -363,6 +431,7 @@ export class Sala {
       }
       break;
     }
+    if (room.status !== "vote" && room.voteAt) room.voteAt = null;
   }
 
   /* ---------- saída ---------- */
@@ -390,7 +459,8 @@ export class Sala {
       this.keys = {};
       return;
     }
-    await this.ctx.storage.put({ room: this.room, keys: this.keys });
+    for (const id of this.fora.keys()) if (!this.room?.players?.[id]) this.fora.delete(id);
+    await this.ctx.storage.put({ room: this.room, keys: this.keys, fora: Object.fromEntries(this.fora) });
   }
 
   avisaLista(): void {
@@ -417,6 +487,8 @@ export class Sala {
     const proximos = [this.room.updatedAt + LIMPEZA];
     const v = this.prazoDaVez();
     if (v) proximos.push(v);
+    if (this.room.status === "vote") proximos.push((this.room.voteAt || now()) + VOTE_TIME * 1000 + 500);
+    for (const [id, t] of this.fora) if (this.room.players?.[id] && !this.online(id)) proximos.push(Math.max(now(), t + AUSENTE_S * 1000 + 500));
     await this.ctx.storage.setAlarm(Math.max(Date.now() + 50, Math.min(...proximos)));
   }
 
@@ -429,6 +501,7 @@ export class Sala {
       this.avisaLista();
       return;
     }
+    const antes = JSON.stringify(room);
     const v = this.prazoDaVez();
     if (v && now() >= v) {
       const r = room.round!;
@@ -439,11 +512,15 @@ export class Sala {
         room.clues[sk][i] = { u: r.order[i], t: "(tempo esgotado)" };
         room.turnAt = now();
         if (i === r.order.length - 1) room.status = "vote";
-        this.assentar();
-        room.updatedAt = now();
-        await this.persistir();
-        this.difundir();
       }
+    }
+    // prazo da votação, ausentes e anfitrião que sumiu
+    this.assentar();
+    if (JSON.stringify(room) !== antes) {
+      room.updatedAt = now();
+      await this.persistir();
+      this.difundir();
+      this.avisaLista();
     }
     await this.agendar();
   }

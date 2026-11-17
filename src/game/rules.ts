@@ -332,6 +332,11 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
 }
 
 /* ---------- placar ---------- */
+/** segundos máximos de uma votação: depois disso, conta os votos que já tem (a sala nunca fica travada) */
+export const VOTE_TIME = 180;
+/** segundos sem conexão para o jogador contar como ausente (não trava voto nem vez, e perde o posto de anfitrião) */
+export const AUSENTE_S = 90;
+
 export const PTS_IMP = 3;
 export const PTS_CREW = 1;
 
