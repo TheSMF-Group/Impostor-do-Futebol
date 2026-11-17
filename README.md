@@ -65,12 +65,12 @@ Ajustes manuais ficam em `tools/build-data.ts` (`BR_SWAP`, `CL_DROP`, `CL_KEEP`,
 
 ## Publicar
 
-Mesmo fluxo do The Manager: nada entra direto na `main`.
+Mesmo fluxo do The Manager: nada entra direto na `main`, e o merge é do Guilherme.
 
 1. Crie uma branch a partir da `main` (`feat/...`, `fix/...`, `chore/...`).
 2. Rode `npm run build` (checagem de tipos + build) e teste numa sala com mais de uma aba (`npx astro preview`).
 3. Suba a branch e abra um pull request; o modelo do PR já traz o checklist.
 4. O GitHub Actions roda o CI (tipos + build) e a Vercel publica um preview do PR.
-5. Com o CI verde e o preview conferido, faça o merge: a Vercel publica a `main` em produção sozinha.
+5. Com o CI verde e o preview conferido, o Guilherme revisa e faz o merge: a Vercel publica a `main` em produção sozinha.
 
 Se algum commit entrar na `main` sem PR, o workflow "Aviso de commit sem PR" abre uma issue avisando.
