@@ -1,0 +1,54 @@
+name: Aviso de commit sem PR
+
+# Não bloqueia nada: só avisa (abre uma issue) quando um commit entra na main sem ter passado por um pull request.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  avisar:
+    name: avisar se o commit não veio de PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Procurar o PR deste commit
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # o vínculo commit ↔ PR pode demorar alguns segundos depois do merge: tenta algumas vezes antes de concluir "sem PR"
+          n=0
+          for tentativa in 1 2 3 4; do
+            n=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq 'length')
+            [ "$n" -gt 0 ] && break
+            sleep 10
+          done
+          echo "prs=$n" >> "$GITHUB_OUTPUT"
+          echo "PRs associados ao commit $GITHUB_SHA: $n"
+
+      - name: Abrir issue de alerta
+        if: steps.pr.outputs.prs == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTOR: ${{ github.event.head_commit.author.name }}
+        run: |
+          curto="${GITHUB_SHA:0:7}"
+          {
+            echo "Um commit entrou na \`main\` **sem passar por um pull request**."
+            echo
+            echo "- Commit: [\`$curto\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)"
+            echo "- Autor: $AUTOR"
+            echo "- Quem enviou (push): $GITHUB_ACTOR"
+            echo
+            echo "O fluxo combinado é: branch → PR → CI verde → preview da Vercel → merge pelo Guilherme. Nunca commit ou upload direto na \`main\`."
+            echo
+            echo "**O que fazer:** conferir se a mudança é esperada. Se não for, reverter (\`git revert $curto\`) por um PR. Depois pode fechar esta issue."
+          } > corpo.md
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Commit $curto entrou na main sem PR" \
+            --body-file corpo.md
