@@ -1,5 +1,9 @@
 // Regras puras da partida (sem DOM): sorteio da rodada, votos, resultado e chute.
 import { THEME_ORDER, THEMES, isPlayerTheme } from "./data";
+import { caosLigado } from "./caos";
+import { gerarDica } from "./dica";
+
+export { caosLigado };
 import type { Card, Guess, Out, Patch, RankRow, Room, VoteResult } from "./types";
 import { enc, esc, norm, now, pick, shuffle } from "./util";
 
@@ -59,7 +63,7 @@ export function newRoomDoc(code: string, host: string, nick: string): Room {
     status: "lobby",
     createdAt: t,
     updatedAt: t,
-    settings: { imps: 1, inf: false, chaos: false, hint: false, rounds: 1, cats: THEME_ORDER.slice(), clueTime: 60 },
+    settings: { imps: 1, chaos: false, hint: false, rounds: 1, cats: THEME_ORDER.slice(), clueTime: 60 },
     players: { [host]: { nick, seat: 0, at: t } },
     rn: 0,
     round: null,
@@ -94,7 +98,8 @@ export function newRoundPatch(room: Room): Patch {
 
   let k = Math.min(s.imps, maxImps(n)),
     chaos: string | null = null;
-  if (s.chaos && Math.random() < 1 / 6) {
+  const caos = caosLigado(s);
+  if (caos && Math.random() < 1 / 6) {
     const x = Math.floor(Math.random() * 3);
     if (x === 0) {
       k = 0;
@@ -109,20 +114,16 @@ export function newRoundPatch(room: Room): Patch {
   }
   const imps = shuffle(ids).slice(0, k);
   let d: (typeof T)[number] | null = null;
-  if (s.inf && k > 0 && k < n) {
+  if (caos && k > 0 && k < n) {
     const o = T.filter((i) => i[0] !== it[0] && i[1] !== word);
     d = o.length ? pick(o) : null;
   }
-  const letters = word.replace(/\s/g, "");
-  const isP = isPlayerTheme(cat);
-  // dica: jogadores mostram país + posição; times mostram primeira letra e tamanho
-  const tip =
-    s.hint && !isP ? word[0].toUpperCase() + " " + "_ ".repeat(letters.length - 1).trim() + " · " + letters.length + " letras" : "";
-  const hint: Card = s.hint && isP ? { nat: it[4] || "", pos: it[5] || "" } : {};
+  // dica do impostor: pista indireta (década e clube de passagem; ex-jogador e região), sorteada no servidor
+  const dica = s.hint ? gerarDica(THEMES[cat], it) : [];
   const cards: Record<string, string> = {};
   for (const id of ids) {
     const imp = imps.includes(id);
-    const card: Card = imp ? (d ? { w: d[1], id: d[0] } : { imp: 1, tip, ...hint }) : { w: word, id: it[0] };
+    const card: Card = imp ? (d ? { w: d[1], id: d[0] } : { imp: 1, ...(s.hint ? { dica } : {}) }) : { w: word, id: it[0] };
     cards[id] = enc(JSON.stringify(card));
   }
   const start = Math.floor(Math.random() * n);

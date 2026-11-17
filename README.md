@@ -8,13 +8,13 @@ Feito em **Astro + TypeScript**.
 ## Como funciona
 
 1. Alguém cria a sala e manda o código de 4 letras. Os outros entram pelo código.
-2. Contagem 3, 2, 1 e "Deem seus palpites!". Cada um toca em **Virar carta**: o elenco vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha (com dica de país e posição, se ligada).
+2. Contagem 3, 2, 1 e "Deem seus palpites!". Cada um toca em **Virar carta**: o elenco vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha (com a dica indireta, se ligada: década e clube de passagem, ou ex-jogador e região).
 3. Na sua vez ("Sua vez!"), cada um escreve uma pista de uma palavra.
 4. "Hora da votação!": todo mundo vota. Se o impostor cair, ainda tem um chute para roubar a vitória.
 
 Temas: Jogadores do Futebol Brasileiro, Jogadores da Champions League, Times Brasileiros (Série A e B), Times da Europa e Lendas do Futebol.
 
-Opções do anfitrião: número de impostores, voltas de pistas, Infiltrado, Rodada caótica, Dica do impostor e temas.
+Opções do anfitrião: número de impostores, voltas de pistas, CAOS (impostor infiltrado + rodadas caóticas), Dica do impostor e temas.
 
 ## Rodar
 

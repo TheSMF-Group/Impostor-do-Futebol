@@ -9,7 +9,8 @@
     "build": "astro check && astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "data": "node --experimental-strip-types tools/build-data.ts"
+    "data": "node --experimental-strip-types tools/build-data.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@vercel/functions": "^3.11.3",

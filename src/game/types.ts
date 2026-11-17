@@ -1,7 +1,12 @@
 // Formatos compartilhados do jogo: temas, sala (documento sincronizado) e banco.
 
-/** [id, nome, escudo (slug), subtítulo (clube ou liga), país?, posição?] */
-export type ThemeItem = [id: string, name: string, crest: string, sub: string, nat?: string, pos?: string];
+/**
+ * [id, nome, escudo (slug), subtítulo (clube ou liga), ...]
+ * Jogador: [4] país, [5] posição, [6] década de nascimento, [7] clubes de passagem separados por "|".
+ * Time:    [4] região, [5] ex-jogadores conhecidos separados por "|".
+ * Os campos de [4] em diante alimentam a dica do impostor (dica.ts) e podem faltar.
+ */
+export type ThemeItem = [id: string, name: string, crest: string, sub: string, a?: string, b?: string, dec?: string, ex?: string];
 
 export interface Theme {
   /** nome exibido */
@@ -15,8 +20,10 @@ export type ThemeKey = "jge" | "jbr" | "jbs" | "jcl" | "jan" | "len" | "jgr" | "
 
 export interface Settings {
   imps: number;
-  inf: boolean;
+  /** CAOS: impostor infiltrado (recebe outro item do tema) + rodadas caóticas aleatórias */
   chaos: boolean;
+  /** legado: era o "Infiltrado" avulso; hoje vale como CAOS (ver caosLigado em rules.ts) */
+  inf?: boolean;
   hint: boolean;
   rounds: number;
   cats: string[];
@@ -145,9 +152,8 @@ export interface Card {
   w?: string;
   id?: string;
   imp?: 1;
-  tip?: string;
-  nat?: string;
-  pos?: string;
+  /** dica do impostor: linhas rótulo/valor (dica.ts) */
+  dica?: { r: string; v: string }[];
 }
 
 /** Atualização parcial: objetos são mesclados, null apaga. */

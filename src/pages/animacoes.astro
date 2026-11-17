@@ -125,6 +125,6 @@ const groups = [
   });
   $("flipI").addEventListener("click", async () => {
     await ready;
-    showCard(faceHTML({ imp: 1, nat: "Brasil", pos: "Meia-atacante" }, "len"), 1100);
+    showCard(faceHTML({ imp: 1, dica: [{ r: "Geração", v: "Nasceu nos anos 1960" }, { r: "Passagem", v: "Já jogou no Cruzeiro" }] }, "len"), 1100);
   });
 </script>

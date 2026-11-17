@@ -9,6 +9,7 @@ import { cue } from "./moments";
 import { isMuted, setMuted, unlockOnGesture } from "./sfx";
 import {
   activeIds,
+  caosLigado,
   catsOf,
   cluesByPlayer,
   genCode,
@@ -567,7 +568,7 @@ function lobbyHTML(room: Room): string {
   const dis = h ? "" : "disabled";
   const cats = catsOf(room);
   const elimSet = Math.min(s.imps, mi) >= 2 && s.voteMode === "elim";
-  const sw = (k: "inf" | "chaos" | "hint" | "guess", t: string, d: string, on = !!s[k]) =>
+  const sw = (k: "chaos" | "hint" | "guess", t: string, d: string, on = !!s[k]) =>
     `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-act="opt" data-k="${k}" ${on ? "checked" : ""} ${dis} aria-label="${t}"><span></span></label></div>`;
   return `<div class="kicker center">Sala de espera</div>
   <div class="codebox${S.hideCode ? " hidden-code" : ""}"><div><div class="kicker">Código da sala</div><div class="c">${esc(codeTxt())}</div></div><div class="cb-btns"><button class="btn btn-ghost btn-sm" type="button" data-act="hideCode" aria-pressed="${S.hideCode}">${S.hideCode ? EYE + " Mostrar" : EYE_OFF + " Ocultar"}</button><button class="btn btn-white btn-sm" type="button" data-act="copy">Copiar código</button></div></div>
@@ -603,9 +604,8 @@ function lobbyHTML(room: Room): string {
       ([v, t]) => `<button type="button" data-act="clueTime" data-k="${v}" aria-pressed="${(s.clueTime || 0) === v}" ${dis}>${t}</button>`,
     ).join("")}</div></div>
     <div class="row"><div><div class="t">Voltas de pistas</div><div class="d">${elimSet ? "Na eliminação, cada etapa tem uma volta de pistas." : "Quantas pistas cada um dá antes da votação."}</div></div><div class="stepper"><button type="button" data-act="rounds" data-d="-1" ${!h || elimSet || s.rounds <= 1 ? "disabled" : ""} aria-label="Menos voltas">−</button><output>${elimSet ? 1 : s.rounds}</output><button type="button" data-act="rounds" data-d="1" ${!h || elimSet || s.rounds >= 3 ? "disabled" : ""} aria-label="Mais voltas">+</button></div></div>
-    ${sw("inf", "Infiltrado", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor.")}
-    ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
-    ${sw("hint", "Dica do impostor", "Jogadores: o impostor vê o país e a posição. Times: a primeira letra e o tamanho do nome.")}
+    ${sw("chaos", "CAOS", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor. Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.", caosLigado(s))}
+    ${sw("hint", "Dica do impostor", "Uma pista indireta, nunca país, posição nem letras. Jogadores: década de nascimento e um clube de passagem. Times: um ex-jogador e a região.")}
     ${sw("guess", "Chute do impostor pego", s.guess !== false ? "Impostor descoberto ainda tem um chute: se acertar a carta, rouba a vitória." : "Desligado: impostor descoberto já perdeu, sem chute.", s.guess !== false)}
     <div class="row" style="display:block"><div class="t" style="margin-bottom:8px">Temas</div><div class="chips">${THEME_ORDER.filter((k) => THEMES[k])
       .map(

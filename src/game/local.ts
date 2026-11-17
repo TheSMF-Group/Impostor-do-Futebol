@@ -3,7 +3,7 @@
 import { loadMedia, loadThemes, THEMES, THEME_ORDER, themeName } from "./data";
 import { refazSugestao, sugBoxHTML } from "./sugestao";
 import { closeReveal, faceHTML, secretHTML, showCard } from "./card";
-import { activeIds, catsOf, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, ranking, roundKey, scorePatch, stageKey, tallyVotes, votesPerPlayer } from "./rules";
+import { activeIds, caosLigado, catsOf, guessOk, maxImps, newRoomDoc, newRoundPatch, outcome, ranking, roundKey, scorePatch, stageKey, tallyVotes, votesPerPlayer } from "./rules";
 import { sfx } from "./sfx";
 import { keepAwake } from "./wake";
 import { COLORS } from "./state";
@@ -182,7 +182,7 @@ function setupHTML(): string {
   const n = L.names.map((x) => x.trim()).filter(Boolean).length;
   const mi = maxImps(Math.max(3, n));
   const cats = catsOf(room);
-  const sw = (k: "inf" | "chaos" | "hint" | "guess", t: string, d: string, on = !!s[k]) =>
+  const sw = (k: "chaos" | "hint" | "guess", t: string, d: string, on = !!s[k]) =>
     `<div class="row"><div><div class="t">${t}</div><div class="d">${d}</div></div><label class="sw"><input type="checkbox" data-l="opt" data-k="${k}" ${on ? "checked" : ""} aria-label="${t}"><span></span></label></div>`;
   const times: [number, string][] = [[120, "2 min"], [180, "3 min"], [300, "5 min"], [0, "Sem tempo"]];
   return `<div class="zone-top"><div class="kicker center">Modo local · um celular</div></div>
@@ -208,9 +208,8 @@ function setupHTML(): string {
     <div class="row"><div><div class="t">Tempo de conversa</div><div class="d">Depois que todo mundo viu a carta.</div></div><div class="seg">${times
       .map(([v, t]) => `<button type="button" data-l="time" data-k="${v}" aria-pressed="${L.discussSecs === v}">${t}</button>`)
       .join("")}</div></div>
-    ${sw("inf", "Infiltrado", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor.")}
-    ${sw("chaos", "Rodada caótica", "Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.")}
-    ${sw("hint", "Dica do impostor", "Jogadores: o impostor vê o país e a posição. Times: a primeira letra e o tamanho do nome.")}
+    ${sw("chaos", "CAOS", "O impostor recebe outro jogador ou time do mesmo tema e nem sabe que é impostor. Uma rodada em seis vira bagunça: ninguém impostor, todo mundo impostor ou um a mais.", caosLigado(s))}
+    ${sw("hint", "Dica do impostor", "Uma pista indireta, nunca país, posição nem letras. Jogadores: década de nascimento e um clube de passagem. Times: um ex-jogador e a região.")}
     ${sw("guess", "Chute do impostor pego", s.guess !== false ? "Impostor descoberto ainda tem um chute: se acertar a carta, rouba a vitória." : "Desligado: impostor descoberto já perdeu, sem chute.", s.guess !== false)}
     <div class="row" style="display:block"><div class="t" style="margin-bottom:8px">Temas</div><div class="chips">${THEME_ORDER.filter((k) => THEMES[k])
       .map((k) => `<button type="button" class="chip" data-l="cat" data-k="${k}" aria-pressed="${cats.includes(k)}">${esc(THEMES[k].n)}<small>${THEMES[k].items.length}</small></button>`)
@@ -307,7 +306,7 @@ function resultHTML(): string {
   return `${stepper()}
   <div class="result ${o.win ? "win" : "lose"}">${o.win ? "" : `<div style="font-family:var(--pixel);color:var(--red);font-size:52px;line-height:.9;text-shadow:3px 3px 0 var(--red-deep)">Impostor</div>`}<h2>${o.title}</h2><p>${o.sub}</p>${
     o.pending ? "" : `<div class="kicker" style="margin-top:8px">Carta secreta · ${esc(themeName(r.cat))}</div>${secretHTML(r.cat, dec(r.sid || ""), word)}`
-  }${decoy && !o.pending ? `<p style="margin-top:8px;font-size:13px">O infiltrado recebeu: <b>${esc(decoy)}</b></p>` : ""}${r.chaos && !o.pending ? `<p style="margin-top:6px;font-size:13px">${esc(r.chaos)}</p>` : ""}</div>
+  }${decoy && !o.pending ? `<p style="margin-top:8px;font-size:13px">O impostor infiltrado recebeu: <b>${esc(decoy)}</b></p>` : ""}${r.chaos && !o.pending ? `<p style="margin-top:6px;font-size:13px">${esc(r.chaos)}</p>` : ""}</div>
   ${
     o.pending
       ? `<div class="panel turn-mine"><h3>${esc(nick(g))}, chute a carta</h3><p class="note" style="margin:-2px 0 10px">Você foi pego. Se acertar o ${r.cat && THEMES[r.cat]?.k === "p" ? "jogador" : "time"}, rouba a vitória. Diga em voz alta ou escreva.</p><div class="myturn"><input class="field" id="lGuess" maxlength="40" placeholder="Quem era o jogador ou time?" autocomplete="off" aria-label="Seu chute"><button class="btn btn-red" type="button" data-l="guess" data-id="${esc(g)}">Chutar</button></div>${sugBoxHTML("lGuess", r.cat!)}<button class="btn btn-ghost btn-sm" type="button" data-l="skipguess" data-id="${esc(g)}" style="margin-top:10px">Não quero chutar</button></div>`

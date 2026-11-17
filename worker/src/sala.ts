@@ -241,7 +241,12 @@ export class Sala {
       const bool = (k: string) => {
         if (k in s) set[k] = !!s[k];
       };
-      ["inf", "chaos", "hint", "guess"].forEach(bool);
+      ["chaos", "hint", "guess"].forEach(bool);
+      // "Infiltrado" e "Rodada caótica" viraram o CAOS: cliente antigo ainda manda "inf"; o campo legado sempre zera
+      if ("chaos" in s || "inf" in s) {
+        set.chaos = !!(("chaos" in s ? s.chaos : s.inf) ?? false);
+        set.inf = false;
+      }
       const int = (k: string, lo: number, hi: number) => {
         if (k in s) set[k] = Math.max(lo, Math.min(hi, Math.round(Number(s[k]) || lo)));
       };

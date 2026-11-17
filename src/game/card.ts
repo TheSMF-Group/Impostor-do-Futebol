@@ -28,12 +28,13 @@ export function cardBarHTML(): string {
 /** Frente da carta: foto do jogador ou escudo do time, com o escudo do clube no canto. */
 export function faceHTML(c: Card, cat: string): string {
   if (c.imp) {
-    const tip = c.tip ? c.tip.split(" · ") : null;
     return `<div class="award-face back cf imp"><div class="px">Impostor</div><p>Você não sabe quem é.<br>Tema: <b>${esc(themeName(cat))}</b></p>${
-      c.nat || c.pos
-        ? `<div class="hint2">${c.nat ? `<div><small>País</small><b>${esc(c.nat)}</b></div>` : ""}${c.pos ? `<div><small>Posição</small><b>${esc(c.pos)}</b></div>` : ""}</div>`
-        : ""
-    }${tip ? `<div class="tip">${esc(tip[0])}<small>${esc(tip[1] || "")}</small></div>` : ""}<p style="font-size:12.5px;color:var(--muted)">Escute as pistas e blefe.</p></div>`;
+      c.dica?.length
+        ? `<div class="hint2">${c.dica.map((l) => `<div><small>${esc(l.r)}</small><b>${esc(l.v)}</b></div>`).join("")}</div>`
+        : c.dica
+          ? `<p style="font-size:12.5px;color:var(--muted)">Sem dica para esta carta.</p>`
+          : ""
+    }<p style="font-size:12.5px;color:var(--muted)">Escute as pistas e blefe.</p></div>`;
   }
   const it = itemOf(cat, c.id),
     isP = isPlayerTheme(cat),
