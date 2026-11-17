@@ -1,5 +1,6 @@
 // O que cada jogador pode ver da sala. O servidor guarda tudo; quem está de fora recebe só o que já é público.
 import type { Room } from "../../src/game/types";
+import { ordemDeFala } from "../../src/game/chat";
 import { jclone } from "../../src/game/util";
 
 const MASK = "?";
@@ -9,6 +10,8 @@ export function vistaPara(room: Room, me: string): Room {
   const v = jclone(room) as Room;
   v.used = [];
   const r = v.round;
+  // ordem de fala: só quem escreveu e quando, o mesmo que o chat já mostra a todos; não depende de quem é impostor
+  if (r) r.fala = ordemDeFala(room.chat?.["r" + room.rn], r.players).falaram;
   const revealed = v.status === "result" || v.status === "podium";
   if (r && !revealed) {
     const mine = r.cards?.[me];

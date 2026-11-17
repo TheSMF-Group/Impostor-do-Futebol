@@ -60,6 +60,8 @@ export interface Round {
   did?: string | null;
   imps: string[];
   chaos: string | null;
+  /** ordem de fala no chat (1ª mensagem de cada um); calculada pelo servidor na vista de cada jogador */
+  fala?: string[];
   players: string[];
   order: string[];
   laps: number;

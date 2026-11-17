@@ -26,6 +26,7 @@ import {
   AUSENTE_S,
 } from "../../src/game/rules";
 import type { Patch, Room } from "../../src/game/types";
+import { CHAT_SLOW_MS, chatEspera } from "../../src/game/chat";
 import { dec, deepMerge, now } from "../../src/game/util";
 import { resumoPublico, vistaPara } from "./vista";
 
@@ -257,7 +258,7 @@ export class Sala {
       if ("cats" in s && Array.isArray(s.cats)) set.cats = (s.cats as unknown[]).filter((c): c is string => typeof c === "string" && !!THEMES[c]);
     }
     if (p.chat) {
-      if (room.status !== "vote" || !liveIds(room).includes(me)) nao("proibido", "Só quem está na votação pode escrever.");
+      if ((room.status !== "clues" && room.status !== "vote") || !liveIds(room).includes(me)) nao("proibido", "Só quem está jogando pode escrever agora.");
       const rk = roundKey(room);
       const msgs = (p.chat as Record<string, Record<string, { t?: unknown }>>)[rk];
       if (!msgs) nao("proibido", "Mensagem inválida.");
@@ -269,6 +270,9 @@ export class Sala {
         const t = (msg.t as string).replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_LEN);
         if (!t) nao("vazio", "Escreva uma mensagem.");
         if (Object.values(sala).filter((x) => x?.u === me).length >= CHAT_MAX_PER_PLAYER) nao("limite", "Limite de mensagens da rodada.");
+        // slowmode: o relógio é o do servidor; mensagem barrada não entra no chat nem conta como fala
+        const falta = chatEspera(sala, me, now());
+        if (falta > 0) nao("lento", `Espere ${Math.ceil(falta / 1000)}s para escrever de novo (intervalo de ${CHAT_SLOW_MS / 1000}s).`);
         sala[id] = { u: me, t, at: now() };
       }
     }

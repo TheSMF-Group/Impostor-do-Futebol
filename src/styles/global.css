@@ -520,3 +520,8 @@ body{padding-bottom:var(--ad-b,0px)}
 .temacard span{color:var(--accent);font-size:13px;font-weight:700}
 .doc .temacard p{margin:4px 0 0;font-size:13px;color:var(--muted)}
 .doc a.temacard:hover{border-color:var(--accent)}
+.fala{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fala li{display:flex;align-items:center;gap:8px;font-weight:700}
+.fala li b{min-width:62px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.fala li.mudo{color:var(--muted);font-weight:600}
+.fala li.mudo b{color:var(--muted)}

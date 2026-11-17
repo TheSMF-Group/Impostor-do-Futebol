@@ -27,6 +27,7 @@ import {
   VOTE_TIME,
 } from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
+import { CHAT_SLOW_MS, chatEspera, ordemDeFala } from "./chat";
 import type { ChatMsg, Patch, Room } from "./types";
 import { $, dec, esc, ls, now } from "./util";
 
@@ -512,6 +513,7 @@ function render(): void {
     chi.value = S.chatDraft;
     if (focused === "chatIn") chi.focus();
   }
+  if (chi || document.querySelector('[data-act="chat"]')) chatTick();
   // a conversa abre já na mensagem mais nova, a menos que a pessoa tenha subido para ler
   const cl = document.getElementById("chatList");
   if (cl) {
@@ -528,6 +530,26 @@ function render(): void {
 const CHAT_MAX_LEN = 140;
 const CHAT_MAX_PER_PLAYER = 30;
 let chatStick = true;
+/** até quando o botão fica travado depois de enviar (só para o jogador ver; quem manda é o servidor) */
+let chatLivreEm = 0;
+let chatTimer = 0;
+
+/** Ms que faltam para poder enviar: vale o maior entre o relógio local do último envio e a última mensagem na sala. */
+function chatFalta(room: Room): number {
+  return Math.max(0, chatLivreEm - Date.now(), chatEspera(room.chat?.[roundKey(room)], S.me, Date.now()));
+}
+
+/** Atualiza só o botão enquanto o intervalo corre, sem refazer a tela (não tira o foco do campo). */
+function chatTick(): void {
+  window.clearTimeout(chatTimer);
+  const room = S.room;
+  const b = document.querySelector<HTMLButtonElement>('[data-act="chat"]');
+  if (!room || !b) return;
+  const f = chatFalta(room);
+  b.disabled = f > 0;
+  b.textContent = f ? `Aguarde ${Math.ceil(f / 1000)}s` : "Enviar";
+  if (f) chatTimer = window.setTimeout(chatTick, 250);
+}
 let chatScroll = 0;
 
 function chatMsgs(room: Room): [string, ChatMsg][] {
@@ -552,11 +574,23 @@ function chatHTML(room: Room, open: boolean): string {
     canSend
       ? mine >= CHAT_MAX_PER_PLAYER
         ? `<p class="note" style="margin-top:8px">Você chegou ao limite de ${CHAT_MAX_PER_PLAYER} mensagens nesta rodada.</p>`
-        : `<div class="myturn" style="margin-top:10px"><input class="field" id="chatIn" maxlength="${CHAT_MAX_LEN}" placeholder="Explique sua pista…" autocomplete="off" aria-label="Mensagem para a sala"><button class="btn btn-red" type="button" data-act="chat">Enviar</button></div>`
+        : `<div class="myturn" style="margin-top:10px"><input class="field" id="chatIn" maxlength="${CHAT_MAX_LEN}" placeholder="Explique sua pista…" autocomplete="off" aria-label="Mensagem para a sala"><button class="btn btn-red" type="button" data-act="chat" ${chatFalta(room) ? "disabled" : ""}>${chatFalta(room) ? `Aguarde ${Math.ceil(chatFalta(room) / 1000)}s` : "Enviar"}</button></div>`
       : open
         ? `<p class="note" style="margin-top:8px">Só quem ainda está no jogo pode escrever.</p>`
         : ""
   }</div>`;
+}
+
+/** Ordem de fala da votação: quem escreveu primeiro no chat; quem ficou calado vai para o fim. A ordem vem do servidor (round.fala). */
+function falaHTML(room: Room): string {
+  const r = room.round;
+  if (!r) return "";
+  const ids = liveIds(room);
+  const falaram = (r.fala || ordemDeFala(room.chat?.[roundKey(room)], r.players).falaram).filter((id) => ids.includes(id));
+  const calados = ids.filter((id) => !falaram.includes(id));
+  const li = (id: string, tag: string, mudo = false) =>
+    `<li${mudo ? ' class="mudo"' : ""}><b>${tag}</b>${dot(id)}<span>${esc(id === S.me ? "Você" : nickOf(id))}</span></li>`;
+  return `<div class="panel" data-zone="side"><h3>Ordem de fala</h3><ol class="fala">${falaram.map((id, i) => li(id, `${i + 1}º`)).join("")}${calados.map((id) => li(id, "não falou", true)).join("")}</ol></div>`;
 }
 
 function lobbyHTML(room: Room): string {
@@ -656,6 +690,7 @@ function cluesHTML(room: Room): string {
   }
   ${timerHTML(room, mine)}
   <div class="panel" data-zone="side"><h3>Pistas</h3><div class="clues">${rows}</div></div>
+  ${chatHTML(room, true)}
   ${manageHTML(room)}
   ${isHost() ? `<div data-zone="side" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}
   ${leaveHTML()}`;
@@ -843,6 +878,7 @@ function voteHTML(room: Room): string {
     .join("")}
   <button type="button" class="vote" data-act="vote" data-id="none" aria-pressed="${my.includes("none")}" ${locked ? "disabled" : ""} style="grid-column:1/-1;justify-content:center"><span style="flex:none">${isElim(room) ? "Ninguém sai agora" : "Ninguém é impostor"}</span></button></div>
   ${action}
+  ${falaHTML(room)}
   ${chatHTML(room, true)}
   ${manageHTML(room)}
   ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}
@@ -1033,12 +1069,18 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
         roomErr("Escreva uma mensagem antes de enviar.");
         return;
       }
-      if (room!.status !== "vote" || !liveIds(room!).includes(S.me)) return;
+      if ((room!.status !== "vote" && room!.status !== "clues") || !liveIds(room!).includes(S.me)) return;
+      if (chatFalta(room!)) return;
       if (chatMsgs(room!).filter(([, m]) => m.u === S.me).length >= CHAT_MAX_PER_PLAYER) return;
       const id = S.me + "-" + Date.now().toString(36);
       S.chatDraft = "";
       chatStick = true;
-      if (!(await upd({ chat: { [rk()]: { [id]: { u: S.me, t, at: now() } } }, updatedAt: now() }))) S.chatDraft = t;
+      chatLivreEm = Date.now() + CHAT_SLOW_MS;
+      chatTick();
+      if (!(await upd({ chat: { [rk()]: { [id]: { u: S.me, t, at: now() } } }, updatedAt: now() }))) {
+        S.chatDraft = t;
+        chatLivreEm = 0;
+      }
       render();
       break;
     }
