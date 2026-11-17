@@ -25,6 +25,8 @@ export const S = {
   kickAsk: null as string | null,
   /** anfitrião pediu para encerrar a sala (esperando confirmar) */
   endAsk: false,
+  /** pediu para sair no meio da partida (esperando confirmar) */
+  leaveAsk: false,
   /** no resultado: jogadores com as dicas abertas */
   openClues: [] as string[],
   readOnly: false,

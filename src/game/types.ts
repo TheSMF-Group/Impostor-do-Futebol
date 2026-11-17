@@ -123,6 +123,8 @@ export interface Room {
   chat?: Record<string, Record<string, ChatMsg | null> | null>;
   /** quando começou a vez atual de dar pista (relógio de quem gravou) */
   turnAt?: number;
+  /** quando abriu a votação atual (o servidor fecha sozinho depois de VOTE_TIME) */
+  voteAt?: number | null;
   /** placar acumulado da sala até encerrar */
   scores?: Record<string, Score> | null;
   /** pontos dados em cada rodada ("r3" → jogador → pontos); marca que a rodada já foi contada */

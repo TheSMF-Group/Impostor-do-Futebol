@@ -23,6 +23,7 @@ import {
   roundKey,
   stageKey,
   votesPerPlayer,
+  VOTE_TIME,
 } from "./rules";
 import { S, colorOf, isHost, nickOf } from "./state";
 import type { ChatMsg, Patch, Room } from "./types";
@@ -506,7 +507,8 @@ function cluesHTML(room: Room): string {
   ${timerHTML(room, mine)}
   <div class="panel" data-zone="side"><h3>Pistas</h3><div class="clues">${rows}</div></div>
   ${manageHTML(room)}
-  ${isHost() ? `<div data-zone="side" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}`;
+  ${isHost() ? `<div data-zone="side" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" type="button" data-act="skip">Pular a vez de ${esc(nickOf(turn))}</button><button class="btn btn-ghost btn-sm" type="button" data-act="tovote">Ir direto para a votação</button></div>` : ""}
+  ${leaveHTML()}`;
 }
 
 /** Eliminação: quem já saiu e se era impostor. */
@@ -634,13 +636,19 @@ function timerHTML(room: Room, mine: boolean): string {
 
 /** A cada segundo: atualiza o relógio (quem passa a vez quando o tempo acaba é o servidor). */
 function tick(): void {
-  const el = document.getElementById("turnTimer");
-  if (el) {
+  for (const el of document.querySelectorAll<HTMLElement>(".ttimer[data-end]")) {
     const left = Number(el.dataset.end) - Date.now();
     const b = el.querySelector("b");
     if (b) b.textContent = fmtLeft(left);
     el.classList.toggle("low", left <= 10000);
   }
+}
+
+/** Sair no meio da partida (com confirmação): sempre dá para voltar ao início. */
+function leaveHTML(): string {
+  return S.leaveAsk
+    ? `<div class="panel leaveask" data-zone="side"><p style="margin:0 0 10px"><b>Sair da sala?</b> Você sai desta partida e ela segue sem você.</p><div style="display:flex;gap:8px"><button class="btn btn-red btn-sm" type="button" data-act="leave">Sim, sair</button><button class="btn btn-ghost btn-sm" type="button" data-act="leaveNo">Cancelar</button></div></div>`
+    : `<button class="btn btn-ghost btn-block" type="button" data-act="leaveAsk" data-zone="side">Sair da sala</button>`;
 }
 
 function voteHTML(room: Room): string {
@@ -674,6 +682,7 @@ function voteHTML(room: Room): string {
   return `${stepperHTML(room, 1)}
   <h2 class="big center">${title}</h2>
   ${meter}
+  ${room.voteAt ? `<div class="ttimer vtimer" data-end="${room.voteAt + VOTE_TIME * 1000}" role="timer"><span>A votação fecha em</span><b>${fmtLeft(room.voteAt + VOTE_TIME * 1000 - Date.now())}</b></div>` : ""}
   ${cardBarHTML()}
   ${elimHTML(room)}
   <div class="votes${locked ? " locked" : ""}">${ids
@@ -686,7 +695,8 @@ function voteHTML(room: Room): string {
   ${action}
   ${chatHTML(room, true)}
   ${manageHTML(room)}
-  ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}`;
+  ${isHost() ? `<button class="btn btn-ghost btn-block" type="button" data-act="close">Encerrar votação agora</button>` : ""}
+  ${leaveHTML()}`;
 }
 
 /** Anfitrião: tirar jogadores a qualquer momento (offline, saiu da chamada…). */
@@ -955,7 +965,16 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
       if (await send("guess", { t })) S.guessDraft = "";
       break;
     }
+    case "leaveAsk":
+      S.leaveAsk = true;
+      render();
+      break;
+    case "leaveNo":
+      S.leaveAsk = false;
+      render();
+      break;
     case "leave": {
+      S.leaveAsk = false;
       if (room && S.me && room.players?.[S.me]) await send("leave").catch(() => {});
       exitRoom();
       break;

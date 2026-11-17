@@ -175,6 +175,8 @@ footer{border-top:1px solid var(--line);padding-block:24px;color:var(--muted);fo
 .vconf b{color:#4cd187;font-size:16px}
 .vconf span{flex:1;min-width:0;font-size:14px;color:var(--fg)}
 .ttimer{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:10px 16px}
+.vtimer{margin-top:-4px} /* relógio da votação */
+.leaveask{border-color:var(--red)} /* confirmar saída no meio da partida */
 .ttimer span{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .ttimer b{font-family:var(--display);font-weight:900;font-size:30px;font-variant-numeric:tabular-nums;line-height:1}
 .ttimer.mine{border-color:var(--accent)}
