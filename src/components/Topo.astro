@@ -1,0 +1,20 @@
+---
+// Topo do site. Nas telas de jogo (sala, local) o logo não sai da página: só rola para o alto.
+interface Props {
+  jogo?: boolean;
+}
+const { jogo = false } = Astro.props;
+const logo = `<span class="blogo" aria-hidden="true"><img src="/bode.png" alt=""><img class="lg" src="/logo-impostor.png" alt="Impostor"><span class="bs">DO FUTEBOL</span></span>`;
+---
+
+<header class="top"><div class="wrap">
+  {jogo
+    ? <button class="brand" id="homeBtn" type="button" aria-label="Impostor do Futebol, voltar ao topo" set:html={logo} />
+    : <a class="brand" href="/" aria-label="Impostor do Futebol, início" set:html={logo} />}
+  <div class="topacts">
+    <button class="roomtag" id="roomTag" type="button" hidden></button>
+    {jogo && <button class="link" id="muteBtn" type="button" aria-pressed="false">Som: ligado</button>}
+    {jogo ? <button class="link" id="rulesBtn" type="button">Como jogar</button> : <a class="link" href="/como-jogar">Como jogar</a>}
+    {!jogo && <a class="link hide-sm" href="/temas">Temas</a>}
+  </div>
+</div></header>

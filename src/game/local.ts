@@ -60,8 +60,7 @@ export async function enterLocal(exit: () => void): Promise<void> {
   L.room = room;
   L.phase = "setup";
   L.err = "";
-  $("scr-home").hidden = true;
-  $("scr-room").hidden = true;
+  for (const id of ["scr-home", "scr-room"]) document.getElementById(id)?.setAttribute("hidden", "");
   $("scr-local").hidden = false;
   const tag = $("roomTag");
   tag.textContent = "LOCAL";
@@ -82,7 +81,10 @@ export function exitLocal(): void {
   onExit();
 }
 
-export const localActive = (): boolean => !$("scr-local").hidden;
+export const localActive = (): boolean => {
+  const el = document.getElementById("scr-local");
+  return !!el && !el.hidden;
+};
 
 /* ---------- partida ---------- */
 function applyPlayers(): boolean {

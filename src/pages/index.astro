@@ -1,12 +1,32 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import Topo from "../components/Topo.astro";
+import Anuncio from "../components/Anuncio.astro";
+import Rodape from "../components/Rodape.astro";
+import { TEMAS } from "../temas-paginas";
+const jog = TEMAS.filter((t) => t.k.startsWith("j") || t.k === "len");
+const clu = TEMAS.filter((t) => t.k.startsWith("t"));
+const ROT: Record<string, string> = { jge: "Em geral", jbr: "Futebol brasileiro", jbs: "Brasileiros", jcl: "Champions League", jan: "Antigos", len: "Lendas", jgr: "Gringos do Brasileirão", jgo: "Goleiros", tge: "Do mundo", tbr: "Brasileiros", teu: "Europeus", tsa: "Sul-americanos" };
 ---
 
-<Layout>
-<header class="top"><div class="wrap">
-  <button class="brand" id="homeBtn" type="button" aria-label="Impostor do Futebol, início"><span class="blogo" aria-hidden="true"><img src="/bode.png" alt=""><img class="lg" src="/logo-impostor.png" alt="Impostor"><span class="bs">DO FUTEBOL</span></span></button>
-  <div style="display:flex;gap:6px;align-items:center"><button class="roomtag" id="roomTag" type="button" hidden></button><button class="link" id="muteBtn" type="button" aria-pressed="false">Som: ligado</button><button class="link" id="rulesBtn" type="button">Como jogar</button></div>
-</div></header>
+<Layout page="home">
+<script is:inline slot="head">
+  // Links antigos (?sala=ABCD, ?modo=local) e quem fechou a aba no meio da partida vão direto para a página certa.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search);
+      var s = (q.get("sala") || "").toUpperCase().replace(/[^A-Z]/g, "");
+      if (s.length === 4) return location.replace("/sala/" + s);
+      if (q.get("modo") === "local") return location.replace("/local");
+      var r = localStorage.getItem("idf-room");
+      if (r && /^[A-Z]{4}$/.test(r) && !q.has("inicio")) {
+        sessionStorage.setItem("idf-volta", "1");
+        location.replace("/sala/" + r);
+      }
+    } catch (e) {}
+  })();
+</script>
+<Topo />
 
 <main id="scr-home">
   <section class="hero">
@@ -16,25 +36,25 @@ import Layout from "../layouts/Layout.astro";
       <h1>Todo mundo sabe o craque. Menos um.</h1>
       <p class="lead">Crie uma sala, mande o código para a galera e cada um joga do próprio celular. Quem é do elenco vira a carta e vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha e precisa blefar.</p>
       <div class="join" id="joinBox">
-        <p class="invite-note" id="inviteNote" hidden></p>
         <input class="field" id="nick" maxlength="18" placeholder="Seu apelido" autocomplete="nickname" aria-label="Seu apelido">
         <div class="vis" role="group" aria-label="Tipo de sala">
           <button type="button" class="vis-op" data-vis="pub" aria-pressed="true"><b>Pública</b><span>Aparece na lista de salas abertas</span></button>
           <button type="button" class="vis-op" data-vis="priv" aria-pressed="false"><b>Privada</b><span>Só entra quem tiver o código ou o link</span></button>
         </div>
+        <p class="invite-note" id="temaNote" hidden></p>
         <button class="btn btn-red btn-block" id="createBtn" type="button">Criar sala</button>
         <div class="two"><input class="field code-field" id="codeIn" maxlength="4" placeholder="CÓDIGO" aria-label="Código da sala" autocomplete="off"><button class="btn btn-white" id="joinBtn" type="button">Entrar</button></div>
         <p class="err" id="homeErr" hidden></p>
         <div class="or"><span>ou</span></div>
-        <button class="btn btn-ghost btn-block" id="localBtn" type="button">Modo local · um celular só</button>
+        <a class="btn btn-ghost btn-block" id="localBtn" href="/local">Modo local · um celular só</a>
         <p class="note localnote">Sem sala nem código: passem o celular de mão em mão.</p>
       </div>
     </div>
     <aside class="temas" id="heroArt" aria-label="Temas">
       <div class="th"><h2>12 temas</h2><span>quase 800 cartas</span></div>
-      <div class="tg"><small>Jogadores</small><ul><li>Em geral</li><li>Futebol brasileiro</li><li>Brasileiros</li><li>Champions League</li><li>Antigos</li><li>Lendas</li><li>Gringos do Brasileirão</li><li>Goleiros</li></ul></div>
-      <div class="tg"><small>Clubes</small><ul><li>Do mundo</li><li>Brasileiros</li><li>Europeus</li><li>Sul-americanos</li></ul></div>
-      <p>Quem cria a sala escolhe os temas da partida.</p>
+      <div class="tg"><small>Jogadores</small><ul>{jog.map((t) => <li><a href={`/temas/${t.slug}`}>{ROT[t.k]}</a></li>)}</ul></div>
+      <div class="tg"><small>Clubes</small><ul>{clu.map((t) => <li><a href={`/temas/${t.slug}`}>{ROT[t.k]}</a></li>)}</ul></div>
+      <p>Quem cria a sala escolhe os temas da partida. <a href="/temas">Ver as cartas de cada tema</a></p>
     </aside>
   </div></section>
 
@@ -43,8 +63,10 @@ import Layout from "../layouts/Layout.astro";
     <div class="rooms" id="rooms"></div>
   </div></section>
 
+  <div class="wrap"><Anuncio /></div>
+
   <section class="block" style="padding-top:4px"><div class="wrap">
-    <div class="sec-head"><h2>Como funciona</h2></div>
+    <div class="sec-head"><h2>Como funciona</h2><a class="note" href="/como-jogar">Regras completas →</a></div>
     <div class="steps">
       <div><b>1</b><h3>Monte a sala</h3><p>Crie, mande o código e espere a galera entrar. Mínimo de 3.</p></div>
       <div><b>2</b><h3>Veja sua carta</h3><p>Toque em Virar carta e veja o jogador ou time secreto. Ou a tela do impostor.</p></div>
@@ -52,30 +74,12 @@ import Layout from "../layouts/Layout.astro";
       <div><b>4</b><h3>Votação</h3><p>Todo mundo vota no suspeito. Se o impostor cair, ainda pode chutar quem era.</p></div>
     </div>
   </div></section>
-  <footer><div class="wrap">Impostor do Futebol · cada jogador entra pelo próprio celular com o link do jogo.</div></footer>
+  <Rodape />
 </main>
-
-<main id="scr-local" hidden><div class="wrap stage"><div class="col" id="localView"></div></div></main>
-
-<main id="scr-room" hidden><div class="wrap stage"><div class="col" id="roomView"></div></div></main>
-
-<dialog id="rules"><div class="dlg">
-  <h2>Como jogar</h2>
-  <ol>
-    <li>Alguém cria a sala e passa o código. Todo mundo entra pelo próprio celular.</li>
-    <li>Quando a partida começa, cada um toca em Virar carta. O elenco vê o jogador ou time secreto, com foto e escudo. O impostor vê a tela vermelha e o tema.</li>
-    <li>Na ordem sorteada, cada um escreve uma pista de uma palavra. O impostor tenta parecer do elenco.</li>
-    <li>Todo mundo vota em quem acha que é o impostor. Empate não elimina ninguém.</li>
-    <li>Se o elenco pegar o impostor, ele ainda tem um chute para adivinhar o jogador ou time secreto e roubar a vitória.</li>
-  </ol>
-  <p>Temas de jogadores: em geral, do futebol brasileiro, brasileiros, da Champions League, antigos, lendas, gringos do Brasileirão e goleiros. Temas de clubes: do mundo, brasileiros, europeus e sul-americanos.</p><p>Regra de ouro: proibido escrever o nome, o clube do jogador ou parte exata do nome.</p>
-  <p>Dica: joguem numa chamada de voz para discutir antes de votar.</p>
-  <form method="dialog"><button class="btn btn-red btn-block">Entendi</button></form>
-</div></dialog>
 
 </Layout>
 
 <script>
-  import { start } from "../game/app";
-  start();
+  import { startHome } from "../game/app";
+  startHome();
 </script>

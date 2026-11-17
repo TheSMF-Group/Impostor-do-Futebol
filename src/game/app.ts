@@ -29,12 +29,50 @@ import { S, colorOf, isHost, nickOf } from "./state";
 import type { ChatMsg, Patch, Room } from "./types";
 import { $, dec, esc, ls, now } from "./util";
 
-const screen = (): "home" | "room" => (S.code ? "room" : "home");
+// Cada tela é uma página de verdade: início (/), sala (/sala/ABCD) e local (/local).
+// Trocar de página é o que o visitante pede (criar, entrar, sair), e é aí que o anúncio carrega de novo.
+const PAGE = (): string => document.body.dataset.page || "";
+const screen = (): "home" | "room" => (S.code && S.room ? "room" : "home");
 const ref = () => S.db!.doc("rooms/" + S.code);
 const rk = () => roundKey(S.room!);
 
+const ss = {
+  get(k: string): string | null {
+    try {
+      return sessionStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
+  take(k: string): string | null {
+    try {
+      const v = sessionStorage.getItem(k);
+      sessionStorage.removeItem(k);
+      return v;
+    } catch {
+      return null;
+    }
+  },
+  set(k: string, v: string): void {
+    try {
+      sessionStorage.setItem(k, v);
+    } catch {
+      /* sem sessionStorage: o aviso se perde */
+    }
+  },
+};
+
+/** Vai para a página da sala. */
+const goRoom = (c: string): void => location.assign("/sala/" + c);
+/** Volta para o início, com um aviso opcional mostrado lá. */
+function goHome(aviso = ""): void {
+  if (aviso) ss.set("idf-aviso", aviso);
+  location.assign("/?inicio");
+}
+
 function homeErr(t: string): void {
-  const el = $("homeErr");
+  const el = document.getElementById("homeErr");
+  if (!el) return;
   el.textContent = t || "";
   el.hidden = !t;
 }
@@ -45,7 +83,7 @@ function roomErr(t: string): void {
     el.hidden = false;
   }
 }
-const alertBox = (t: string) => (screen() === "home" ? homeErr(t) : roomErr(t));
+const alertBox = (t: string) => (screen() === "home" || !document.getElementById("roomErr") ? homeErr(t) : roomErr(t));
 
 /** Grava no banco e mostra um aviso amigável se der errado. */
 async function write(fn: () => Promise<void>): Promise<boolean> {
@@ -68,32 +106,87 @@ const dot = (id: string) =>
   `<span class="dot" style="background:${colorOf(id)}">${esc(nickOf(id)[0]?.toUpperCase() || "?")}</span>`;
 
 /* ---------- início ---------- */
-async function boot(): Promise<void> {
-  $<HTMLInputElement>("nick").value = ls.get("idf-nick") || "";
-  await loadThemes();
-  void loadMedia();
-  render();
+/** Conecta ao servidor das salas; devolve false se não deu. */
+async function conectar(): Promise<boolean> {
   const b = await connect();
-  if (!b) {
-    noDb();
-    return;
-  }
+  if (!b) return false;
   S.db = b.db;
   S.me = b.me;
   S.readOnly = b.readOnly;
   const nick = $<HTMLInputElement>("nick");
-  if (!nick.value && b.nick) nick.value = b.nick;
+  if (nick && !nick.value && b.nick) nick.value = b.nick;
   if (S.readOnly) homeErr("Sua conta só pode ver este jogo. Peça ao dono do jogo para te convidar como Editor para poder jogar.");
-  watchList();
-  if (applyInvite()) return;
-  const saved = ls.get("idf-room");
-  if (saved) enterRoom(saved, true);
+  return true;
 }
 
-function noDb(): void {
-  $("roomsNote").textContent = "";
-  $("rooms").innerHTML = `<div class="empty">Não deu para conectar ao servidor das salas. Confira a internet e recarregue a página.</div>`;
-  for (const id of ["createBtn", "joinBtn"]) $<HTMLButtonElement>(id).disabled = true;
+/** Tema escolhido numa página de tema (/?tema=jbr): a sala nova abre só com ele marcado. */
+let temaInicial = "";
+
+async function bootHome(): Promise<void> {
+  $<HTMLInputElement>("nick").value = ls.get("idf-nick") || "";
+  const aviso = ss.take("idf-aviso");
+  if (aviso) homeErr(aviso);
+  await loadThemes();
+  const t = new URLSearchParams(location.search).get("tema") || "";
+  if (THEMES[t]) {
+    temaInicial = t;
+    const note = $("temaNote");
+    note.innerHTML = `A sala vai abrir com o tema <b>${esc(THEMES[t].n)}</b>. Na sala de espera dá para juntar outros.`;
+    note.hidden = false;
+  }
+  if (!(await conectar())) {
+    $("roomsNote").textContent = "";
+    $("rooms").innerHTML = `<div class="empty">Não deu para conectar ao servidor das salas. Confira a internet e recarregue a página.</div>`;
+    for (const id of ["createBtn", "joinBtn"]) $<HTMLButtonElement>(id).disabled = true;
+    return;
+  }
+  watchList();
+}
+
+/** Tema vindo da página de tema, aplicado quando a sala recém-criada abre. */
+let temaPendente = "";
+
+/** Código da sala no endereço (/sala/ABCD). */
+const codeFromPath = (): string => (location.pathname.match(/^\/sala\/([A-Za-z]{4})\/?$/)?.[1] || "").toUpperCase();
+/** a sala desta página: do endereço, ou (modo streamer, endereço só "/sala") a última sala deste navegador */
+const codeDaPagina = (): string => codeFromPath() || (location.pathname.replace(/\/$/, "") === "/sala" ? ss.get("idf-sala") || ls.get("idf-room") || "" : "");
+
+async function bootSala(): Promise<void> {
+  const c = codeDaPagina();
+  if (!c) return goHome();
+  ss.set("idf-sala", c);
+  const silent = ss.take("idf-volta") === "1";
+  temaPendente = ss.take("idf-tema") || "";
+  $<HTMLInputElement>("nick").value = ls.get("idf-nick") || "";
+  $<HTMLInputElement>("codeIn").value = c;
+  await loadThemes();
+  void loadMedia();
+  if (!(await conectar())) {
+    $("roomView").innerHTML = `<div class="banner"><b>Não deu para conectar ao servidor das salas.</b>Confira a internet e recarregue a página.</div>`;
+    return;
+  }
+  const s = await S.db!.doc("rooms/" + c).get().catch(() => null);
+  const r = s?.exists ? s.data() : null;
+  if (!r) {
+    if (ls.get("idf-room") === c) ls.set("idf-room", null);
+    return goHome(silent ? "" : "Não achei a sala " + c + ". Confira o código ou crie uma sala nova.");
+  }
+  if (r.players?.[S.me]) {
+    enterRoom(c, silent);
+    return;
+  }
+  // chegou pelo convite: falta só o apelido
+  if (ls.get("idf-room") === c) ls.set("idf-room", null);
+  $("scr-room").hidden = true;
+  $("scr-join").hidden = false;
+  const note = $("inviteNote");
+  note.dataset.code = c;
+  note.dataset.host = r.players?.[r.host]?.nick || "";
+  note.hidden = false;
+  paintHide();
+  const nick = $<HTMLInputElement>("nick");
+  if (nick.value.trim()) void join();
+  else nick.focus();
 }
 
 /* ---------- lista de salas ---------- */
@@ -147,18 +240,38 @@ const codeTxt = (c: string | null = S.code): string => (S.hideCode ? "•••�
 
 function paintHide(): void {
   const h = S.hideCode;
-  const tag = $("roomTag");
-  tag.innerHTML = `${esc(codeTxt())}${h ? EYE_OFF : EYE}`;
-  tag.title = h ? "Código oculto. Toque para mostrar." : "Toque para ocultar o código (modo streamer).";
-  tag.setAttribute("aria-label", h ? "Código da sala oculto. Mostrar código" : "Código da sala " + (S.code || "") + ". Ocultar código");
-  const hb = $("hideCodesBtn");
-  hb.textContent = h ? "Mostrar códigos" : "Ocultar códigos";
-  hb.setAttribute("aria-pressed", String(h));
-  $("codeIn").classList.toggle("masked", h);
-  const inv = $("inviteNote");
-  if (!inv.hidden && inv.dataset.code) {
-    inv.innerHTML = `Você foi convidado para a sala <b>${esc(codeTxt(inv.dataset.code))}</b>`;
-    $("joinBtn").textContent = h ? "Entrar na sala" : "Entrar na sala " + inv.dataset.code;
+  const el = (id: string) => document.getElementById(id);
+  const tag = el("roomTag");
+  if (tag) {
+    tag.innerHTML = `${esc(codeTxt())}${h ? EYE_OFF : EYE}`;
+    tag.title = h ? "Código oculto. Toque para mostrar." : "Toque para ocultar o código (modo streamer).";
+    tag.setAttribute("aria-label", h ? "Código da sala oculto. Mostrar código" : "Código da sala " + (S.code || "") + ". Ocultar código");
+  }
+  const hb = el("hideCodesBtn");
+  if (hb) {
+    hb.textContent = h ? "Mostrar códigos" : "Ocultar códigos";
+    hb.setAttribute("aria-pressed", String(h));
+  }
+  el("codeIn")?.classList.toggle("masked", h);
+  const inv = el("inviteNote");
+  if (inv && !inv.hidden && inv.dataset.code) {
+    const c = inv.dataset.code;
+    const host = inv.dataset.host;
+    inv.innerHTML = `${host ? `<b>${esc(host)}</b> chamou você para a sala` : "Você foi convidado para a sala"} <b>${esc(codeTxt(c))}</b>`;
+    const jb = el("joinBtn");
+    if (jb) jb.textContent = h ? "Entrar na sala" : "Entrar na sala " + c;
+    const tt = el("joinTitle");
+    if (tt) tt.textContent = "Sala " + codeTxt(c);
+  }
+  // na página da sala o código está no endereço: no modo streamer ele sai da barra (volta pela memória do navegador)
+  if (PAGE() === "sala") {
+    const c = codeFromPath() || S.code || inv?.dataset.code || "";
+    try {
+      if (h && location.pathname !== "/sala") history.replaceState(null, "", "/sala");
+      else if (!h && c && location.pathname === "/sala") history.replaceState(null, "", "/sala/" + c);
+    } catch {
+      /* sem history */
+    }
   }
 }
 
@@ -171,30 +284,7 @@ function setHideCode(v: boolean): void {
 }
 
 /* ---------- convite por link ---------- */
-const inviteLink = (): string => `${location.origin}/?sala=${S.code}`;
-
-/** Abriu um link ?sala=ABCD: preenche o código e deixa só o que falta (apelido + entrar). */
-function applyInvite(): boolean {
-  let c = "";
-  try {
-    c = (new URLSearchParams(location.search).get("sala") || "").toUpperCase().replace(/[^A-Z]/g, "");
-  } catch {
-    /* sem URLSearchParams */
-  }
-  if (c.length !== 4) return false;
-  $<HTMLInputElement>("codeIn").value = c;
-  $("joinBox").classList.add("invited");
-  document.body.classList.add("invited");
-  const note = $("inviteNote");
-  note.dataset.code = c;
-  note.hidden = false;
-  paintHide();
-  history.replaceState(null, "", location.pathname);
-  const nick = $<HTMLInputElement>("nick");
-  if (nick.value.trim()) void join();
-  else nick.focus();
-  return true;
-}
+const inviteLink = (): string => `${location.origin}/sala/${S.code}`;
 
 /* ---------- criar / entrar ---------- */
 function getNick(): string | null {
@@ -230,8 +320,14 @@ async function create(): Promise<void> {
   const doc = newRoomDoc(c, S.me, nick);
   if (privChoice()) doc.settings.priv = true;
   const ok = await write(() => S.db!.doc("rooms/" + c).set(doc));
-  btn.disabled = false;
-  if (ok) enterRoom(c);
+  if (!ok) {
+    btn.disabled = false;
+    return;
+  }
+  ls.set("idf-room", c);
+  // o servidor cria a sala com todos os temas; a página da sala aplica o tema escolhido
+  if (temaInicial) ss.set("idf-tema", temaInicial);
+  goRoom(c);
 }
 
 async function join(): Promise<void> {
@@ -259,7 +355,12 @@ async function join(): Promise<void> {
     const ok = await write(() => S.db!.doc("rooms/" + c).update({ players: { [S.me]: { nick, seat, at: now() } }, updatedAt: now() }));
     if (!ok) return;
   } else if (mine.nick !== nick) void write(() => S.db!.doc("rooms/" + c).update({ players: { [S.me]: { nick } } }));
-  enterRoom(c);
+  ls.set("idf-room", c);
+  if (PAGE() === "sala") {
+    $("scr-join").hidden = true;
+    $("scr-room").hidden = false;
+    enterRoom(c);
+  } else goRoom(c);
 }
 
 /** Cada entrada numa sala ganha um número; timers de entradas antigas não fazem nada. */
@@ -291,10 +392,7 @@ function enterRoom(c: string, silent = false): void {
       if (!current()) return;
       const r = s.exists ? s.data() : null;
       if (!r) {
-        if (!s.metadata.fromCache) {
-          exitRoom();
-          if (!silent) homeErr("Essa sala não existe mais.");
-        }
+        if (!s.metadata.fromCache) exitRoom(silent ? "" : "Essa sala não existe mais.");
         return;
       }
       if (r.players?.[S.me]) {
@@ -303,23 +401,24 @@ function enterRoom(c: string, silent = false): void {
         wt = null;
       } else if (!s.metadata.fromCache) {
         if (wasIn) {
-          exitRoom();
-          homeErr("Você não está mais na sala " + codeTxt(c) + ".");
+          exitRoom("Você não está mais na sala " + codeTxt(c) + ".");
           return;
         }
         // entrada ainda não confirmada pelo anfitrião (salas MQTT): espera um pouco
         $("roomView").innerHTML = `<p class="note center">Entrando na sala ${esc(c)}… esperando o anfitrião confirmar.</p>`;
         if (!wt)
           wt = setTimeout(() => {
-            if (current() && S.code === c && !wasIn) {
-              exitRoom();
-              homeErr(silent ? "" : "O anfitrião da sala " + c + " não respondeu. Tente de novo.");
-            }
+            if (current() && S.code === c && !wasIn) exitRoom(silent ? "" : "O anfitrião da sala " + c + " não respondeu. Tente de novo.");
           }, 12000);
         return;
       }
       const prev = S.room;
       S.room = r;
+      if (temaPendente && r.host === S.me && r.status === "lobby") {
+        const k = temaPendente;
+        temaPendente = "";
+        if (THEMES[k]) void write(() => ref().update({ settings: { cats: [k] }, updatedAt: now() }));
+      }
       if (S.revRn !== null && (r.rn !== S.revRn || r.status === "lobby")) closeReveal();
       render();
       cue(prev, r, S.me);
@@ -327,13 +426,13 @@ function enterRoom(c: string, silent = false): void {
     () => {
       clearTimeout(t);
       if (!current()) return;
-      exitRoom();
-      homeErr("Perdi a conexão com a sala. Entre de novo.");
+      exitRoom("Perdi a conexão com a sala. Entre de novo.");
     },
   );
 }
 
-function exitRoom(): void {
+/** Sai da sala e volta para o início (com o aviso, se houver). */
+function exitRoom(aviso = ""): void {
   enterSeq++;
   closeReveal();
   S.unsubRoom?.();
@@ -343,7 +442,7 @@ function exitRoom(): void {
   ls.set("idf-room", null);
   keepAwake(false);
   $("roomTag").hidden = true;
-  render();
+  goHome(aviso);
 }
 
 /* ---------- telas ---------- */
@@ -367,10 +466,7 @@ function layoutZones(v: HTMLElement): void {
   v.append(...(top.length ? [box("zone-top", top)] : []), box("zone-main", main), box("zone-side", side));
 }
 function render(): void {
-  if (localActive()) return;
-  $("scr-home").hidden = screen() !== "home";
-  $("scr-room").hidden = screen() !== "room";
-  if (screen() !== "room") return;
+  if (localActive() || PAGE() !== "sala" || !S.code) return;
   const v = $("roomView");
   const room = S.room;
   if (!room) {
@@ -1035,15 +1131,8 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
 }
 
 /* ---------- eventos ---------- */
-function wire(): void {
-  setInterval(tick, 1000);
-  document.addEventListener(
-    "toggle",
-    (e) => {
-      if ((e.target as HTMLElement).id === "manage") S.manageOpen = (e.target as HTMLDetailsElement).open;
-    },
-    true,
-  );
+/** Início: lista de salas, criar e entrar por código. */
+function wireHome(): void {
   $("rooms").addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>(".roomrow");
     if (b) {
@@ -1052,13 +1141,10 @@ function wire(): void {
     }
   });
   $("createBtn").addEventListener("click", () => void create());
-  $("localBtn").addEventListener("click", () => void enterLocal(render));
-  wireLocal();
-  wireSugestoes();
   $("joinBtn").addEventListener("click", () => void join());
   $("nick").addEventListener("keydown", (e) => {
     if ((e as KeyboardEvent).key !== "Enter") return;
-    if ($("joinBox").classList.contains("invited") || $<HTMLInputElement>("codeIn").value.length === 4) void join();
+    if ($<HTMLInputElement>("codeIn").value.length === 4) void join();
     else void create();
   });
   const codeIn = $<HTMLInputElement>("codeIn");
@@ -1066,6 +1152,53 @@ function wire(): void {
     if (e.key === "Enter") void join();
   });
   codeIn.addEventListener("input", () => (codeIn.value = codeIn.value.toUpperCase().replace(/[^A-Z]/g, "")));
+}
+
+/** Topo das telas de jogo: som e regras. */
+function wireTopo(): void {
+  document.getElementById("homeBtn")?.addEventListener("click", () => window.scrollTo(0, 0));
+  S.hideCode = ls.get("idf-hide-code") === "1";
+  // no modo local a etiqueta diz "LOCAL": não tem código para esconder
+  if (PAGE() === "sala") document.getElementById("roomTag")?.addEventListener("click", () => setHideCode(!S.hideCode));
+  unlockOnGesture();
+  const muteBtn = document.getElementById("muteBtn");
+  if (muteBtn) {
+    const paintMute = () => {
+      const m = isMuted();
+      muteBtn.textContent = m ? "Som: desligado" : "Som: ligado";
+      muteBtn.setAttribute("aria-pressed", String(m));
+    };
+    paintMute();
+    muteBtn.addEventListener("click", () => {
+      setMuted(!isMuted());
+      paintMute();
+    });
+  }
+  document.getElementById("rulesBtn")?.addEventListener("click", () => {
+    const d = $<HTMLDialogElement>("rules");
+    try {
+      d.showModal();
+    } catch {
+      d.setAttribute("open", "");
+    }
+  });
+}
+
+/** Sala: convite, partida e todos os botões dentro dela. */
+function wireSala(): void {
+  setInterval(tick, 1000);
+  document.addEventListener(
+    "toggle",
+    (e) => {
+      if ((e.target as HTMLElement).id === "manage") S.manageOpen = (e.target as HTMLDetailsElement).open;
+    },
+    true,
+  );
+  wireSugestoes();
+  $("joinBtn").addEventListener("click", () => void join());
+  $("nick").addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key === "Enter") void join();
+  });
   document.addEventListener("input", (e) => {
     const t = e.target as HTMLInputElement;
     if (t.id === "clueIn") S.draft = t.value;
@@ -1089,10 +1222,12 @@ function wire(): void {
     const b = (e.target as HTMLElement).closest<HTMLInputElement>("input[data-act]");
     if (b) void act(b.dataset.act!, b);
   });
-  $("homeBtn").addEventListener("click", () => window.scrollTo(0, 0));
+}
+
+export function startHome(): void {
+  wireHome();
   S.hideCode = ls.get("idf-hide-code") === "1";
   paintHide();
-  $("roomTag").addEventListener("click", () => setHideCode(!S.hideCode));
   paintVis();
   for (const b of document.querySelectorAll<HTMLButtonElement>(".vis-op"))
     b.addEventListener("click", () => {
@@ -1100,30 +1235,18 @@ function wire(): void {
       paintVis();
     });
   $("hideCodesBtn").addEventListener("click", () => setHideCode(!S.hideCode));
-  unlockOnGesture();
-  const muteBtn = $("muteBtn");
-  const paintMute = () => {
-    const m = isMuted();
-    muteBtn.textContent = m ? "Som: desligado" : "Som: ligado";
-    muteBtn.setAttribute("aria-pressed", String(m));
-  };
-  paintMute();
-  muteBtn.addEventListener("click", () => {
-    setMuted(!isMuted());
-    paintMute();
-  });
-  $("rulesBtn").addEventListener("click", () => {
-    const d = $<HTMLDialogElement>("rules");
-    try {
-      d.showModal();
-    } catch {
-      d.setAttribute("open", "");
-    }
-  });
+  void bootHome();
 }
 
-export function start(): void {
-  wire();
-  void boot();
-  if (new URLSearchParams(location.search).get("modo") === "local") void enterLocal(render);
+export function startSala(): void {
+  wireTopo();
+  wireSala();
+  void bootSala();
+}
+
+export function startLocal(): void {
+  wireTopo();
+  wireLocal();
+  wireSugestoes();
+  void enterLocal(() => goHome());
 }

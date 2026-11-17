@@ -1,0 +1,42 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Topo from "../../components/Topo.astro";
+import Anuncio from "../../components/Anuncio.astro";
+import Rodape from "../../components/Rodape.astro";
+import { TEMAS } from "../../temas-paginas";
+import dados from "../../../public/data/temas.json";
+import type { Theme } from "../../game/types";
+
+const themes = (dados as unknown as { themes: Record<string, Theme> }).themes;
+const total = new Set(Object.values(themes).flatMap((t) => t.items.map((i) => i[0]))).size;
+const bloco = (k: "p" | "t") => TEMAS.filter((t) => themes[t.k]?.k === k);
+---
+
+<Layout
+  title="Temas do Impostor do Futebol: jogadores e clubes"
+  description={`Os 12 temas do Impostor do Futebol, com ${total} cartas: jogadores do Brasileirão, da Champions, antigos, lendas, goleiros e clubes do Brasil e do mundo.`}
+>
+<Topo />
+<main class="doc"><div class="wrap">
+  <nav class="trilha" aria-label="Você está em"><a href="/">Início</a> / <span>Temas</span></nav>
+  <h1>Os 12 temas do Impostor do Futebol</h1>
+  <p class="lead">São {total} cartas diferentes, entre jogadores e clubes. Quem cria a sala escolhe quais temas entram na partida, e cada rodada sorteia uma carta de um deles.</p>
+  {(["p", "t"] as const).map((k) => (
+    <section>
+      <h2>{k === "p" ? "Jogadores" : "Clubes"}</h2>
+      <div class="temagrid">
+        {bloco(k).map((t) => (
+          <a class="temacard" href={`/temas/${t.slug}`}>
+            <b>{t.curto}</b>
+            <span>{themes[t.k].items.length} cartas</span>
+            <p>{t.intro[0]}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  ))}
+  <Anuncio />
+  <div class="docacts"><a class="btn btn-red" href="/?inicio">Criar sala grátis</a><a class="btn btn-ghost" href="/como-jogar">Como jogar</a></div>
+</div></main>
+<Rodape />
+</Layout>

@@ -6,16 +6,26 @@ interface Props {
   title?: string;
   /** páginas sem anúncio (espera, animações) */
   noAds?: boolean;
+  /** páginas que não devem ir para o Google (sala com código, modo local) */
+  noindex?: boolean;
   description?: string;
   image?: string;
+  /** caminho canônico (ex.: "/temas/goleiros"); padrão é o caminho da própria página */
+  path?: string;
+  /** qual tela o script do jogo deve montar */
+  page?: string;
 }
 const SITE = "https://impostor.thefenomeno.com";
 const {
   title = "Impostor do Futebol",
   image = "/og-impostor.jpg",
   noAds = false,
+  noindex = false,
+  page = "",
+  path = Astro.url.pathname.replace(/\/$/, "") || "/",
   description = "Jogo de impostor com temas de futebol. Crie uma sala e jogue com a galera, cada um do próprio celular.",
 } = Astro.props;
+const url = SITE + (path === "/" ? "/" : path);
 ---
 
 <!doctype html>
@@ -25,13 +35,14 @@ const {
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="description" content={description} />
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={url} />}
     <link rel="icon" href="/bode.png" type="image/png" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Impostor do Futebol" />
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:url" content={SITE} />
+    <meta property="og:url" content={url} />
     <meta property="og:image" content={SITE + image} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -41,13 +52,14 @@ const {
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={SITE + image} />
     <title>{title}</title>
+    <slot name="head" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;700;800&display=swap"
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body data-page={page}>
     <slot />
     {!noAds && <script is:inline define:vars={{ OPEN_AT, ADSENSE_CLIENT }}>
       // AdSense só liga depois da abertura para todos (antes disso o site é restrito a quem tem chave).
@@ -58,6 +70,29 @@ const {
         s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADSENSE_CLIENT;
         document.head.appendChild(s);
       }
+    </script>}
+    {!noAds && <script is:inline>
+      // Anúncio âncora (o automático do Google que gruda no rodapé ou no topo): mede quanto da tela ele
+      // ocupa e empurra o botão fixo do jogo e o topo do site para fora dele, em vez de ficar por baixo.
+      (function () {
+        var root = document.documentElement, lastB = -1, lastT = -1;
+        function medir() {
+          var b = 0, t = 0, h = window.innerHeight;
+          var els = document.querySelectorAll("ins.adsbygoogle[data-anchor-status]");
+          for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            if (el.getAttribute("data-anchor-status") !== "displayed") continue;
+            var r = el.getBoundingClientRect();
+            if (r.height < 10 || r.bottom <= 0 || r.top >= h) continue;
+            if (r.top > h / 2) b = Math.max(b, Math.round(h - r.top));
+            else t = Math.max(t, Math.round(r.bottom));
+          }
+          if (b !== lastB) { root.style.setProperty("--ad-b", b + "px"); lastB = b; }
+          if (t !== lastT) { root.style.setProperty("--ad-t", t + "px"); lastT = t; }
+        }
+        setInterval(medir, 600);
+        window.addEventListener("resize", medir);
+      })();
     </script>}
     <!-- Cloudflare Web Analytics -->
     <script is:inline defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "90e84bd07ce948488d5268f9869f5488"}'></script>

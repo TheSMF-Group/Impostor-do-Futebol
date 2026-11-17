@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /sala
+Disallow: /espera
+Disallow: /animacoes
+
+# o robô do AdSense lê todas as páginas para escolher os anúncios
+User-agent: Mediapartners-Google
+Allow: /
+
+Sitemap: https://impostor.thefenomeno.com/sitemap.xml

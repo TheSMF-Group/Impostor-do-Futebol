@@ -1,3 +1,4 @@
 {
-  "framework": "astro"
+  "framework": "astro",
+  "rewrites": [{ "source": "/sala/:code([A-Za-z]{4})", "destination": "/sala" }]
 }

@@ -1,0 +1,26 @@
+---
+// Bloco de anúncio fixo. Carrega uma vez por página e nunca é recriado pelo jogo:
+// o AdSense não permite renovar anúncio sem o visitante pedir (trocar de página é pedir).
+import { ADSENSE_CLIENT, AD_SLOT } from "../launch";
+
+interface Props {
+  id?: string;
+  class?: string;
+}
+const { id, class: cls = "" } = Astro.props;
+---
+
+{AD_SLOT && (
+  <aside class={`adbox ${cls}`} id={id} aria-label="Publicidade">
+    <span class="adlbl">Publicidade</span>
+    <ins
+      class="adsbygoogle"
+      style="display:block"
+      data-ad-client={ADSENSE_CLIENT}
+      data-ad-slot={AD_SLOT}
+      data-ad-format="auto"
+      data-full-width-responsive="true"
+    ></ins>
+    <script is:inline>(window.adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </aside>
+)}
