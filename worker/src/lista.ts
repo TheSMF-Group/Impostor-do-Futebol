@@ -9,6 +9,8 @@ export class Lista {
 
   constructor(ctx: DurableObjectState) {
     this.ctx = ctx;
+    // o "ping" de 25 s do navegador é respondido pela Cloudflare sem acordar o objeto
+    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.ctx.blockConcurrencyWhile(async () => {
       const s = (await this.ctx.storage.get("salas")) as [string, Room][] | undefined;
       if (s) this.salas = new Map(s);

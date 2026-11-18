@@ -4,6 +4,7 @@ declare type DurableObjectState = any;
 declare type DurableObjectNamespace = any;
 declare type WebSocket = any;
 declare const WebSocketPair: any;
+declare const WebSocketRequestResponsePair: any;
 interface Env {
   SALA: DurableObjectNamespace;
   LISTA: DurableObjectNamespace;

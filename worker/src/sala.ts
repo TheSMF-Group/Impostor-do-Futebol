@@ -71,6 +71,8 @@ export class Sala {
   constructor(ctx: DurableObjectState, env: Env) {
     this.ctx = ctx;
     this.env = env;
+    // o "ping" de 25 s do navegador é respondido pela Cloudflare sem acordar a sala
+    this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.ctx.blockConcurrencyWhile(async () => {
       const [r, k, f] = await Promise.all([this.ctx.storage.get("room"), this.ctx.storage.get("keys"), this.ctx.storage.get("fora")]);
       this.room = (r as Room | undefined) ?? null;
@@ -535,15 +537,21 @@ export class Sala {
     return r && t && r.status === "clues" && r.turnAt ? r.turnAt + t * 1000 + 1000 : null;
   }
 
-  async agendar(): Promise<void> {
+  /**
+   * Próximo alarme. `parado`: o alarme acabou de rodar e nada mudou; aí nada vence antes de 5 s. Sem isso, um prazo
+   * vencido que não se resolve (ausente que não sai porque não sobrou ninguém conectado) reagendava a sala para
+   * dali a 50 ms por até 6 h: ~19 acordadas por segundo, ~430 mil requisições cobradas por sala abandonada.
+   */
+  async agendar(parado = false): Promise<void> {
     if (!this.room) return;
     const proximos = [this.room.updatedAt + LIMPEZA];
     const v = this.prazoDaVez();
     if (v) proximos.push(v);
     if (this.room.status === "vote") proximos.push((this.room.voteAt || now()) + VOTE_TIME * 1000 + 500);
     for (const ate of Object.values(this.room.aqui || {})) proximos.push(ate + 300);
-    for (const [id, t] of this.fora) if (this.room.players?.[id] && !this.online(id)) proximos.push(Math.max(now(), t + AUSENTE_S * 1000 + 500));
-    await this.ctx.storage.setAlarm(Math.max(Date.now() + 50, Math.min(...proximos)));
+    // ausente: acorda uma vez no prazo; se não deu para tirar (ninguém mais conectado), quem voltar resolve ao mandar algo
+    for (const [id, t] of this.fora) if (this.room.players?.[id] && !this.online(id) && t + AUSENTE_S * 1000 + 500 > now()) proximos.push(t + AUSENTE_S * 1000 + 500);
+    await this.ctx.storage.setAlarm(Math.max(Date.now() + (parado ? 5000 : 50), Math.min(...proximos)));
   }
 
   async alarm(): Promise<void> {
@@ -572,12 +580,13 @@ export class Sala {
     }
     // prazo da votação, ausentes e anfitrião que sumiu
     this.assentar();
-    if (JSON.stringify(room) !== antes) {
+    const mudou = JSON.stringify(room) !== antes;
+    if (mudou) {
       room.updatedAt = now();
       await this.persistir();
       this.difundir();
       this.avisaLista();
     }
-    await this.agendar();
+    await this.agendar(!mudou);
   }
 }
