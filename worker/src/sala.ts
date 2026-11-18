@@ -25,6 +25,7 @@ import {
   votesPerPlayer,
   VOTE_TIME,
   AUSENTE_S,
+  AQUI_S,
 } from "../../src/game/rules";
 import type { Patch, Room } from "../../src/game/types";
 import { CHAT_SLOW_MS, chatEspera, chatKey, podeFalar } from "../../src/game/chat";
@@ -154,6 +155,8 @@ export class Sala {
     const me = this.ctx.getTags(ws)[0];
     if (!this.room || !me || me === "x") return;
     try {
+      // qualquer coisa que a pessoa mande prova que ela está ali
+      if (this.room.aqui?.[me]) delete this.room.aqui[me];
       if (m.t === "patch") this.patch(me, m.p || {});
       else if (m.t === "do") this.acao(me, String(m.a), m.d || {});
       else return;
@@ -326,8 +329,8 @@ export class Sala {
           if (!t) nao("vazio", "Escreva uma pista.");
         } else {
           soHost();
-          // tempo da vez esgotado = ausente: sai da sala (o servidor segura se não sobrar ninguém online)
-          if (a === "timeout" && vez && this.remover(vez)) break;
+          // tempo da vez esgotado: a vez passa e a pessoa confirma que está ali
+          if (a === "timeout" && vez) this.pedeAqui(vez);
           t = a === "skip" ? "(pulou a vez)" : "(tempo esgotado)";
         }
         room.clues ||= {};
@@ -383,6 +386,9 @@ export class Sala {
         mescla(kickPatch(room, id));
         break;
       }
+      case "aqui":
+        // a resposta já foi contada ao receber a mensagem
+        break;
       case "leave": {
         if (!room.players?.[me]) break;
         const rest = activeIds(room).filter((id) => id !== me);
@@ -409,6 +415,13 @@ export class Sala {
     return true;
   }
 
+  /** Pergunta "Você ainda está aí?" a quem está conectado (quem está sem conexão segue a regra de AUSENTE_S). */
+  pedeAqui(id: string): void {
+    const room = this.room!;
+    if (!room.players?.[id] || !this.online(id) || room.aqui?.[id]) return;
+    room.aqui = { ...(room.aqui || {}), [id]: now() + AQUI_S * 1000 };
+  }
+
   fechaVotacao(): void {
     const room = this.room!;
     deepMerge(room as never, isElim(room) ? elimPatch(room) : { status: "result", result: { [roundKey(room)]: tallyVotes(room) }, updatedAt: now() });
@@ -420,6 +433,15 @@ export class Sala {
     if (room.status === "closed") return;
     // ausente (sem conexão há AUSENTE_S) sai da sala na hora
     for (const id of activeIds(room)) if (this.ausente(id)) this.remover(id);
+    // "Você ainda está aí?" sem resposta no prazo: sai da sala
+    for (const [id, ate] of Object.entries(room.aqui || {})) {
+      if (!room.players?.[id]) delete room.aqui![id];
+      else if (now() >= ate) {
+        delete room.aqui![id];
+        this.remover(id);
+      }
+    }
+    if (room.aqui && !Object.keys(room.aqui).length) room.aqui = null;
     this.trocaAnfitriao();
     for (let guarda = 0; guarda < 8; guarda++) {
       // vez de pista de quem está ausente: passa sozinha
@@ -446,9 +468,8 @@ export class Sala {
         const alguem = vivos.some((id) => voteDone(picksOf(vs[id]), k));
         const prazo = now() >= room.voteAt + VOTE_TIME * 1000;
         if ((todos && (alguem || vivos.every((id) => this.ausente(id)))) || prazo) {
-          // no prazo, quem ainda não votou estava ausente: sai antes da apuração (sem voto e sem receber voto)
-          if (prazo && alguem) for (const id of vivos) if (room.players?.[id] && !voteDone(picksOf(vs[id]), k)) this.remover(id);
-          if (room.status !== "vote") continue;
+          // no prazo, quem não votou fica sem voto (em branco) e confirma que está ali
+          if (prazo) for (const id of vivos) if (room.players?.[id] && !voteDone(picksOf(vs[id]), k)) this.pedeAqui(id);
           this.fechaVotacao();
           room.voteAt = null;
           continue;
@@ -520,6 +541,7 @@ export class Sala {
     const v = this.prazoDaVez();
     if (v) proximos.push(v);
     if (this.room.status === "vote") proximos.push((this.room.voteAt || now()) + VOTE_TIME * 1000 + 500);
+    for (const ate of Object.values(this.room.aqui || {})) proximos.push(ate + 300);
     for (const [id, t] of this.fora) if (this.room.players?.[id] && !this.online(id)) proximos.push(Math.max(now(), t + AUSENTE_S * 1000 + 500));
     await this.ctx.storage.setAlarm(Math.max(Date.now() + 50, Math.min(...proximos)));
   }
@@ -539,7 +561,9 @@ export class Sala {
       const r = room.round!;
       const sk = stageKey(room);
       const i = Object.keys(room.clues?.[sk] || {}).length;
-      if (r.order[i] && !this.remover(r.order[i])) {
+      if (r.order[i]) {
+        this.pedeAqui(r.order[i]);
+        room.clues ||= {};
         room.clues[sk] ||= {};
         room.clues[sk][i] = { u: r.order[i], t: "(tempo esgotado)" };
         room.turnAt = now();

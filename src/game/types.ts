@@ -140,6 +140,8 @@ export interface Room {
   turnAt?: number;
   /** quando abriu a votação atual (o servidor fecha sozinho depois de VOTE_TIME) */
   voteAt?: number | null;
+  /** "Você ainda está aí?": jogador → até quando pode confirmar (relógio do servidor); sem resposta, sai da sala */
+  aqui?: Record<string, number> | null;
   /** placar acumulado da sala até encerrar */
   scores?: Record<string, Score> | null;
   /** pontos dados em cada rodada ("r3" → jogador → pontos); marca que a rodada já foi contada */

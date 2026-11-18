@@ -339,8 +339,14 @@ export function outcome(room: Room, nick: (id: string) => string): Outcome {
 /* ---------- placar ---------- */
 /** segundos máximos de uma votação: depois disso, conta os votos que já tem (a sala nunca fica travada) */
 export const VOTE_TIME = 180;
-/** segundos sem conexão para o jogador contar como ausente (não trava voto nem vez, e perde o posto de anfitrião) */
-export const AUSENTE_S = 90;
+/** segundos sem conexão para o jogador contar como ausente (não trava voto nem vez, perde o posto de anfitrião e sai da sala) */
+export const AUSENTE_S = 180;
+/**
+ * Segundos para responder "Você ainda está aí?". A pergunta aparece para quem está conectado e deixou passar a
+ * própria vez de dar pista ou o prazo da votação; sem resposta, sai da sala. Quem joga em call fala por voz e
+ * pode não clicar a tempo: perder a vez ou o voto, sozinho, nunca tira ninguém.
+ */
+export const AQUI_S = 15;
 
 export const PTS_IMP = 3;
 export const PTS_CREW = 1;

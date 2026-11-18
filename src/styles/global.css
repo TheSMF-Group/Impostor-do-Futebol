@@ -549,3 +549,10 @@ body{padding-bottom:var(--ad-b,0px)}
   .codebox{padding:10px 14px}
   .invite .btn{min-height:44px}
 }
+
+/* "Você ainda está aí?": cobre a tela até a pessoa confirmar (15 s) */
+.aqui{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.72)}
+.aqui-box{width:min(360px,100%);display:grid;gap:12px;padding:22px 20px;border:1px solid var(--line);border-radius:16px;background:var(--card);text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.aqui-box h2{margin:0;font-family:var(--display);font-weight:400;font-size:30px;letter-spacing:.03em;color:var(--accent)}
+.aqui-box p{margin:0;color:var(--muted);font-size:14px}
+.aqui-box .ttimer{justify-content:center}

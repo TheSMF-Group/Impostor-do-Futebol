@@ -476,6 +476,7 @@ function render(): void {
   if (localActive() || PAGE() !== "sala" || !S.code) return;
   const v = $("roomView");
   const room = S.room;
+  if (!room || room.status === "podium") document.getElementById("aquiLayer")?.remove();
   if (!room) {
     v.innerHTML = `<p class="note center">Entrando na sala ${esc(codeTxt())}…</p>`;
     return;
@@ -493,6 +494,7 @@ function render(): void {
   const html =
     room.status === "lobby" ? lobbyHTML(room) : room.status === "clues" ? cluesHTML(room) : room.status === "vote" ? voteHTML(room) : room.status === "result" ? resultHTML(room) : "";
   v.innerHTML = html + `<p class="err center" id="roomErr" hidden></p>`;
+  aquiLayer(room);
   layoutZones(v);
   const ci = document.getElementById("clueIn") as HTMLInputElement | null;
   if (ci) {
@@ -823,6 +825,34 @@ function timerHTML(room: Room, mine: boolean): string {
   if (!end) return "";
   const left = end - Date.now();
   return `<div class="ttimer${mine ? " mine" : ""}${left <= 10000 ? " low" : ""}" id="turnTimer" data-end="${end}" role="timer"><span>${mine ? "Seu tempo" : "Tempo da vez"}</span><b>${fmtLeft(left)}</b></div>`;
+}
+
+/** A pergunta fica numa camada própria no <body>: dentro da sala, um ancestral com transform prendia o fixed. */
+function aquiLayer(room: Room): void {
+  let el = document.getElementById("aquiLayer");
+  const html = aquiHTML(room);
+  if (!html) return void el?.remove();
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "aquiLayer";
+    el.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest('[data-act="aqui"]')) void act("aqui");
+    });
+    document.body.appendChild(el);
+  }
+  el.innerHTML = html;
+}
+
+/** "Você ainda está aí?": deixou passar a vez ou o voto; sem confirmar no prazo, o servidor tira da sala. */
+function aquiHTML(room: Room): string {
+  const ate = room.aqui?.[S.me];
+  if (!ate) return "";
+  return `<div class="aqui" role="alertdialog" aria-labelledby="aquiT"><div class="aqui-box">
+    <h2 id="aquiT">Você ainda está aí?</h2>
+    <p>O seu tempo passou sem resposta. Confirme para continuar na sala.</p>
+    <div class="ttimer low" data-end="${ate}" role="timer"><span>Sai da sala em</span><b>${fmtLeft(ate - Date.now())}</b></div>
+    <button class="btn btn-red btn-block" type="button" data-act="aqui">Estou aqui</button>
+  </div></div>`;
 }
 
 /** A cada segundo: atualiza o relógio (quem passa a vez quando o tempo acaba é o servidor). */
@@ -1173,6 +1203,9 @@ async function act(a: string, b?: HTMLElement): Promise<void> {
     case "leaveAsk":
       S.leaveAsk = true;
       render();
+      break;
+    case "aqui":
+      await send("aqui");
       break;
     case "leaveNo":
       S.leaveAsk = false;
