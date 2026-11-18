@@ -403,7 +403,7 @@ function enterRoom(c: string, silent = false): void {
         wt = null;
       } else if (!s.metadata.fromCache) {
         if (wasIn) {
-          exitRoom("Você não está mais na sala " + codeTxt(c) + ".");
+          exitRoom(motivoSaida(S.room, r, codeTxt(c)));
           return;
         }
         // entrada ainda não confirmada pelo anfitrião (salas MQTT): espera um pouco
@@ -436,6 +436,22 @@ function enterRoom(c: string, silent = false): void {
 /** Sai da sala e volta para o início (com o aviso, se houver). */
 /** já saindo da página da sala: a segunda chamada (servidor avisando a saída que a pessoa pediu) não faz nada */
 let saindo = false;
+
+/**
+ * Por que a pessoa não está mais na sala, para o aviso da tela inicial. Saída por ausência deixa no chat um aviso
+ * do sistema com o id dela no fim da chave ("sys-<hora>-<id>"); se a pergunta "Você ainda está aí?" estava aberta,
+ * foi falta de resposta, senão foi a conexão que ficou caída. Sem esse aviso, foi o anfitrião (ou outra aba).
+ */
+function motivoSaida(antes: Room | null, agora: Room, sala: string): string {
+  // só o aviso desta saída (quem saiu, voltou e depois foi tirado pelo anfitrião não leva o motivo antigo)
+  const porAusencia = Object.values(agora.chat || {}).some((msgs) =>
+    Object.keys(msgs || {}).some((k) => k.startsWith("sys-") && k.endsWith("-" + S.me) && parseInt(k.split("-")[1], 36) >= (agora.updatedAt || 0) - 10_000),
+  );
+  const volta = " Dá para entrar de novo com o código da sala.";
+  if (porAusencia && antes?.aqui?.[S.me]) return `Você saiu da sala ${sala} por inatividade: não confirmou em 15 segundos que ainda estava aí.` + volta;
+  if (porAusencia) return `Você saiu da sala ${sala} porque ficou mais de 3 minutos sem conexão.` + volta;
+  return `Você não está mais na sala ${sala}: o anfitrião tirou você ou você saiu dela em outra aba.`;
+}
 
 function exitRoom(aviso = ""): void {
   if (saindo) return;
